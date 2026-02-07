@@ -3,15 +3,25 @@
     "name": "velomax",
     "slug": "velomax",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "landscape",
     "icon": "./assets/images/icon.png",
     "scheme": "velomax",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIStatusBarHidden": true,
+        "UIViewControllerBasedStatusBarAppearance": false
+      },
+      "bundleIdentifier": "com.devbombado.velomax"
     },
     "android": {
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,7 +29,14 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "statusBar": {
+        "hidden": true
+      },
+      "navigationBar": {
+        "visible": false
+      },
+      "package": "com.devbombado.velomax"
     },
     "web": {
       "output": "static",
