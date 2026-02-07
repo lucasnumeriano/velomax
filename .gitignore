@@ -47,3 +47,8 @@ app-example
 
 # env
 .env
+
+#app build
+app.config.ts
+app.json
+eas.json
