@@ -1,7 +1,13 @@
+import { Speedometer } from "@/components/Speedometer";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
 import { Text, View } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView from "react-native-maps";
+
+function smoothAngle(current: number, target: number) {
+  const diff = ((target - current + 540) % 360) - 180;
+  return (current + diff * 0.15 + 360) % 360;
+}
 
 export default function Index() {
   const [speed, setSpeed] = useState(0);
@@ -12,6 +18,7 @@ export default function Index() {
     longitude: number;
     heading: number;
   } | null>(null);
+  const [smoothHeading, setSmoothHeading] = useState(0);
 
   useEffect(() => {
     const clock = setInterval(() => {
@@ -31,15 +38,21 @@ export default function Index() {
           timeInterval: 1000,
           distanceInterval: 1,
         },
-        (location) => {
-          const kmh = (location.coords.speed ?? 0) * 3.6;
+        (locationData) => {
+          const kmh = (locationData.coords.speed ?? 0) * 3.6;
           setSpeed(kmh);
 
-          setLocation({
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            heading: location.coords.heading ?? 0,
-          });
+          const heading = locationData.coords.heading ?? smoothHeading;
+
+          setSmoothHeading((prev) => smoothAngle(prev, heading));
+
+          const newPos = {
+            latitude: locationData.coords.latitude,
+            longitude: locationData.coords.longitude,
+            heading,
+          };
+
+          setLocation(newPos);
         },
       );
     })();
@@ -47,51 +60,81 @@ export default function Index() {
     return () => clearInterval(clock);
   }, []);
 
+  const zoom = speed < 20 ? 19 : speed < 50 ? 18 : speed < 80 ? 17 : 16;
+
   return (
     <View className="flex-1 bg-panel items-center justify-center px-6">
-      {location && (
-        <View className="absolute top-6 left-6 rounded-2xl overflow-hidden border border-gray-700 bg-black">
-          <MapView
-            style={{ width: 130, height: 130 }}
-            region={{
-              latitude: location.latitude,
-              longitude: location.longitude,
-              latitudeDelta: 0.002,
-              longitudeDelta: 0.002,
+      {location ? (
+        <View
+          className="absolute top-6 left-6 items-center justify-center"
+          style={{ width: 150, height: 150 }}
+        >
+          {/* Borda externa estilo radar */}
+          <View
+            className="absolute border border-gray-600"
+            style={{
+              width: 150,
+              height: 150,
+              borderRadius: 75,
             }}
-            camera={{
-              center: {
-                latitude: location.latitude,
-                longitude: location.longitude,
-              },
-              heading: location.heading, // 🔥 AQUI O GTA ACONTECE
-              pitch: 0,
-              zoom: 18,
-              altitude: 0,
-            }}
-            rotateEnabled={false} // desliga gesto, mas deixa o código girar
-            scrollEnabled={false}
-            zoomEnabled={false}
-            pitchEnabled={false}
-            showsCompass={false}
-            showsBuildings={false}
-            showsTraffic={false}
-          >
-            {/* Player fixo */}
-            <Marker coordinate={location}>
-              <View className="w-3 h-3 bg-cyan-400 rounded-full border border-white" />
-            </Marker>
-          </MapView>
-        </View>
-      )}
+          />
 
-      {/* Hora */}
+          {/* Mapa circular */}
+          <View
+            className="bg-black overflow-hidden"
+            style={{
+              width: 130,
+              height: 130,
+              borderRadius: 65,
+            }}
+          >
+            <MapView
+              style={{ width: 130, height: 130 }}
+              camera={{
+                center: {
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                },
+                heading: smoothHeading, // 🧠 SUAVIZADO
+                pitch: 0,
+                zoom,
+                altitude: 0,
+              }}
+              rotateEnabled={false}
+              scrollEnabled={false}
+              zoomEnabled={false}
+              pitchEnabled={false}
+              showsCompass={false}
+              showsBuildings={false}
+              showsTraffic={false}
+            />
+          </View>
+
+          {/* Player fixo (seta) */}
+          <View className="absolute">
+            <View
+              style={{
+                width: 0,
+                height: 0,
+                borderLeftWidth: 8,
+                borderRightWidth: 8,
+                borderBottomWidth: 16,
+                borderLeftColor: "transparent",
+                borderRightColor: "transparent",
+                borderBottomColor: "#00c8ff",
+              }}
+            />
+          </View>
+        </View>
+      ) : null}
+
+      {/* Time */}
       <View className="absolute top-10 right-12">
         <Text className="text-gray-300 text-3xl tracking-widest">{time}</Text>
       </View>
 
       {/* Speed */}
-      <View className="items-center gap-2">
+      {/* <View className="items-center gap-2">
         <View className="relative items-center">
           <View
             className="absolute w-96 h-10 rounded-full"
@@ -106,7 +149,8 @@ export default function Index() {
           </Text>
         </View>
         <Text className="text-gray-400 text-2xl">km/h</Text>
-      </View>
+      </View> */}
+      <Speedometer speed={speed} />
     </View>
   );
 }
