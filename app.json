@@ -22,6 +22,10 @@
           "apiKey": "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY"
         }
       },
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -60,6 +64,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f30c69de-7ba0-45bd-992b-49ffec291a6f"
+      }
+    },
+    "owner": "devbombado"
   }
 }

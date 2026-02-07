@@ -18,7 +18,7 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
 
   return (
     <View style={{ width: size, height: size, position: "relative" }}>
-      <Svg width={size} height={size}>
+      <Svg width={size} height={size} pointerEvents="none">
         {/* Fundo */}
         <Circle
           cx={size / 2}
@@ -53,28 +53,26 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
       <View
         style={{
           position: "absolute",
+          top: 0,
+          left: 0,
           width: size,
           height: size,
           justifyContent: "center",
           alignItems: "center",
+          zIndex: 10,
         }}
       >
-        <View className="items-center gap-2">
-          <View className="relative items-center">
-            <View
-              className="absolute w-96 h-10 rounded-full"
-              style={{
-                backgroundColor: "rgba(0, 200, 255, 0.9)",
-                bottom: 0,
-                filter: "blur(40px)",
-              }}
-            />
-            <Text className="text-white text-[160px] font-semibold leading-none">
-              {speed.toFixed(0)}
-            </Text>
-          </View>
-          <Text className="text-gray-400 text-2xl">km/h</Text>
-        </View>
+        <Text
+          style={{
+            color: "#fff",
+            fontSize: 150,
+            fontWeight: "700",
+            lineHeight: 150,
+          }}
+        >
+          {speed.toFixed(0)}
+        </Text>
+        <Text style={{ color: "#9ca3af", fontSize: 28 }}>km/h</Text>
       </View>
     </View>
   );
