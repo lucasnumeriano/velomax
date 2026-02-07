@@ -95,7 +95,7 @@ export default function Index() {
                   latitude: location.latitude,
                   longitude: location.longitude,
                 },
-                heading: smoothHeading, // 🧠 SUAVIZADO
+                heading: smoothHeading,
                 pitch: 0,
                 zoom,
                 altitude: 0,
@@ -134,22 +134,6 @@ export default function Index() {
       </View>
 
       {/* Speed */}
-      {/* <View className="items-center gap-2">
-        <View className="relative items-center">
-          <View
-            className="absolute w-96 h-10 rounded-full"
-            style={{
-              backgroundColor: "rgba(0, 200, 255, 0.9)",
-              bottom: 0,
-              filter: "blur(40px)",
-            }}
-          />
-          <Text className="text-white text-[160px] font-semibold leading-none">
-            {speed.toFixed(0)}
-          </Text>
-        </View>
-        <Text className="text-gray-400 text-2xl">km/h</Text>
-      </View> */}
       <Speedometer speed={speed} />
     </View>
   );
