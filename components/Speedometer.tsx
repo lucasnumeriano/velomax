@@ -2,18 +2,25 @@ import { Text, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 
 type Props = {
-  speed: number; // km/h
+  speed: number; // km/h - valor digital
+  smoothSpeed: number; // km/h - valor do arco/ponteiro
   maxSpeed?: number;
+  inverted?: boolean;
 };
 
-export function Speedometer({ speed, maxSpeed = 240 }: Props) {
+export function Speedometer({
+  speed,
+  smoothSpeed,
+  maxSpeed = 240,
+  inverted = false,
+}: Props) {
   const size = 360;
   const strokeWidthBg = 8;
   const strokeWidthProgress = 3;
   const radius = (size - strokeWidthBg) / 2;
   const circumference = 2 * Math.PI * radius;
 
-  const progress = Math.min(speed / maxSpeed, 1);
+  const progress = Math.min(smoothSpeed / maxSpeed, 1);
   const strokeDashoffset = circumference - circumference * progress;
 
   return (
@@ -24,13 +31,12 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="#1e293b"
+          stroke={inverted ? "#e2e8f0" : "#1e293b"}
           strokeWidth={strokeWidthBg}
           fill="none"
           strokeLinecap="round"
           strokeDasharray={`${circumference * 0.75} ${circumference}`}
-          rotation={135}
-          origin={`${size / 2}, ${size / 2}`}
+          transform={`rotate(135, ${size / 2}, ${size / 2})`}
         />
 
         {/* Progresso */}
@@ -44,8 +50,7 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
           strokeLinecap="round"
           strokeDasharray={`${circumference * 0.75} ${circumference}`}
           strokeDashoffset={strokeDashoffset}
-          rotation={135}
-          origin={`${size / 2}, ${size / 2}`}
+          transform={`rotate(135, ${size / 2}, ${size / 2})`}
         />
       </Svg>
 
@@ -64,7 +69,7 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
       >
         <Text
           style={{
-            color: "#fff",
+            color: inverted ? "#000" : "#fff",
             fontSize: 150,
             fontWeight: "700",
             lineHeight: 150,
@@ -72,7 +77,9 @@ export function Speedometer({ speed, maxSpeed = 240 }: Props) {
         >
           {speed.toFixed(0)}
         </Text>
-        <Text style={{ color: "#9ca3af", fontSize: 28 }}>km/h</Text>
+        <Text style={{ color: inverted ? "#374151" : "#9ca3af", fontSize: 28 }}>
+          km/h
+        </Text>
       </View>
     </View>
   );
