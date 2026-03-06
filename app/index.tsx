@@ -1,14 +1,13 @@
 import { Speedometer } from "@/components/Speedometer";
-import { AntDesign } from "@expo/vector-icons";
+import { AntDesign, FontAwesome } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Slider from "@react-native-community/slider";
 import * as Battery from "expo-battery";
 import * as Brightness from "expo-brightness";
-import Constants from "expo-constants";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import * as Location from "expo-location";
 import { useEffect, useRef, useState } from "react";
-import { Dimensions, Pressable, Text, View } from "react-native";
+import { Dimensions, Modal, Pressable, Text, View } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 
@@ -17,7 +16,7 @@ function smoothAngle(current: number, target: number) {
   return (current + diff * 0.15 + 360) % 360;
 }
 
-const GOOGLE_MAPS_KEY = Constants.expoConfig?.extra?.googleMapsApiKey;
+const GOOGLE_MAPS_KEY = "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function Index() {
@@ -38,6 +37,10 @@ export default function Index() {
   } | null>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
+
+  // Estado para limite de velocidade
+  const [speedLimit, setSpeedLimit] = useState<number | null>(null);
+  const [showSpeedLimitModal, setShowSpeedLimitModal] = useState(false);
 
   const [location, setLocation] = useState<{
     latitude: number;
@@ -65,6 +68,7 @@ export default function Index() {
       // Carregar preferências salvas
       const savedTheme = await AsyncStorage.getItem("theme");
       const savedBrightness = await AsyncStorage.getItem("brightness");
+      const savedSpeedLimit = await AsyncStorage.getItem("speedLimit");
 
       if (savedTheme !== null) {
         setInverted(savedTheme === "inverted");
@@ -78,6 +82,10 @@ export default function Index() {
         // Obter brilho atual se não houver valor salvo
         const currentBrightness = await Brightness.getBrightnessAsync();
         setBrightness(currentBrightness);
+      }
+
+      if (savedSpeedLimit !== null) {
+        setSpeedLimit(parseInt(savedSpeedLimit, 10));
       }
 
       // Obter nível da bateria inicial
@@ -212,36 +220,36 @@ export default function Index() {
               <Pressable
                 onPress={openFullMap}
                 className="absolute top-6 left-6 items-center justify-center"
-                style={{ width: 150, height: 150 }}
+                style={{ width: 440, height: 340 }}
               >
                 {/* Borda externa estilo radar */}
                 <View
-                  className="absolute border border-gray-600"
+                  className="absolute"
                   style={{
-                    width: 150,
-                    height: 150,
-                    borderRadius: 75,
+                    width: 440,
+                    height: 340,
+                    borderRadius: 8,
                   }}
                 />
 
-                {/* Mapa circular */}
+                {/* Mapa quadrado */}
                 <View
                   className="bg-black overflow-hidden"
                   style={{
-                    width: 130,
-                    height: 130,
-                    borderRadius: 65,
+                    width: 420,
+                    height: 320,
+                    borderRadius: 6,
                   }}
                 >
                   <MapView
                     ref={mapRef}
-                    style={{ width: 130, height: 130 }}
+                    style={{ width: 420, height: 320 }}
                     initialCamera={{
                       center: {
                         latitude: location.latitude,
                         longitude: location.longitude,
                       },
-                      heading: 0,
+                      heading: smoothHeading,
                       pitch: 0,
                       zoom: 18,
                       altitude: 0,
@@ -252,7 +260,7 @@ export default function Index() {
                     pitchEnabled={false}
                     showsCompass={false}
                     showsBuildings={false}
-                    showsTraffic={false}
+                    showsTraffic={true}
                   >
                     {/* Rota no minimap */}
                     {destination && GOOGLE_MAPS_KEY && (
@@ -266,6 +274,10 @@ export default function Index() {
                         strokeWidth={3}
                         strokeColor="#00c8ff"
                         optimizeWaypoints
+                        onReady={(result) => {
+                          setRouteDistance(result.distance * 1000); // km para metros
+                          setRouteDuration(result.duration); // minutos
+                        }}
                       />
                     )}
                   </MapView>
@@ -277,21 +289,49 @@ export default function Index() {
                     style={{
                       width: 0,
                       height: 0,
-                      borderLeftWidth: 8,
-                      borderRightWidth: 8,
-                      borderBottomWidth: 16,
+                      borderLeftWidth: 16,
+                      borderRightWidth: 16,
+                      borderBottomWidth: 32,
                       borderLeftColor: "transparent",
                       borderRightColor: "transparent",
                       borderBottomColor: "#00c8ff",
                     }}
                   />
                 </View>
+
+                {/* Info da rota no minimap */}
+                {destination && routeDistance && routeDuration ? (
+                  <View className="absolute top-2 right-2">
+                    <View
+                      className={`px-2 py-1 rounded flex-row  items-center gap-5 ${inverted ? "bg-white/90" : "bg-gray-800/90"}`}
+                      style={{ minWidth: 90 }}
+                    >
+                      <FontAwesome
+                        name="flag-checkered"
+                        size={32}
+                        color="white"
+                      />
+                      <View>
+                        <Text
+                          className={`text-xl font-bold ${inverted ? "text-black" : "text-cyan-400"}`}
+                        >
+                          {formatETA(routeDuration)}
+                        </Text>
+                        <Text
+                          className={`text-xl ${inverted ? "text-gray-700" : "text-gray-300"}`}
+                        >
+                          {formatDistance(routeDistance)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : null}
               </Pressable>
             ) : null}
 
             {/* Battery */}
             {batteryLevel !== null ? (
-              <View className="absolute bottom-10 right-12 flex-row items-center gap-2">
+              <View className="absolute bottom-11 left-28 flex-row items-center gap-2">
                 {/* Corpo da bateria */}
                 <View
                   className={`border-2 ${
@@ -329,7 +369,7 @@ export default function Index() {
             ) : null}
 
             {/* Time */}
-            <View className="absolute top-10 right-12">
+            <View className="absolute bottom-10 left-[385px]">
               <Text
                 className={`text-3xl tracking-widest ${
                   inverted ? "text-black" : "text-gray-300"
@@ -339,31 +379,118 @@ export default function Index() {
               </Text>
             </View>
 
-            {/* ETA e Distância (quando há rota ativa) */}
-            {destination && routeDistance && routeDuration ? (
-              <View className="absolute top-24 right-12">
-                <View
-                  className={`px-4 py-2 rounded-lg ${
-                    inverted ? "bg-gray-200" : "bg-gray-800"
+            {/* Botão Limite de Velocidade */}
+            <Pressable
+              onPress={() => setShowSpeedLimitModal(true)}
+              className="absolute top-10 right-12"
+            >
+              <View
+                className={`px-3 py-2 rounded-lg border-2 items-center ${
+                  speedLimit
+                    ? speed > speedLimit
+                      ? "border-red-500 bg-red-500/20"
+                      : "border-cyan-400 bg-cyan-400/20"
+                    : inverted
+                      ? "border-gray-400 bg-gray-200"
+                      : "border-gray-500 bg-gray-800"
+                }`}
+              >
+                <Text
+                  className={`text-xs ${
+                    speedLimit
+                      ? speed > speedLimit
+                        ? "text-red-400"
+                        : "text-cyan-400"
+                      : inverted
+                        ? "text-gray-600"
+                        : "text-gray-400"
                   }`}
                 >
-                  <Text
-                    className={`text-xl font-bold ${
-                      inverted ? "text-black" : "text-cyan-400"
-                    }`}
-                  >
-                    ETA: {formatETA(routeDuration)}
-                  </Text>
-                  <Text
-                    className={`text-lg ${
-                      inverted ? "text-gray-700" : "text-gray-300"
-                    }`}
-                  >
-                    {formatDistance(routeDistance)}
-                  </Text>
-                </View>
+                  MAX
+                </Text>
+                <Text
+                  className={`text-2xl font-bold ${
+                    speedLimit
+                      ? speed > speedLimit
+                        ? "text-red-400"
+                        : "text-cyan-400"
+                      : inverted
+                        ? "text-black"
+                        : "text-white"
+                  }`}
+                >
+                  {speedLimit ?? "--"}
+                </Text>
               </View>
-            ) : null}
+            </Pressable>
+
+            {/* Modal de Limite de Velocidade */}
+            <Modal
+              visible={showSpeedLimitModal}
+              transparent
+              animationType="fade"
+              onRequestClose={() => setShowSpeedLimitModal(false)}
+            >
+              <Pressable
+                className="flex-1 items-center justify-center bg-black/60"
+                onPress={() => setShowSpeedLimitModal(false)}
+              >
+                <Pressable onPress={(e) => e.stopPropagation()}>
+                  <View
+                    className="bg-gray-900 rounded-2xl p-8 mx-8 items-center"
+                    style={{ minWidth: 300 }}
+                  >
+                    <Text className="text-white text-2xl font-bold mb-6">
+                      Limite de Velocidade
+                    </Text>
+
+                    {/* Presets */}
+                    <View className="flex-row flex-wrap justify-center gap-3 mb-6">
+                      {[30, 40, 50, 60, 80, 100, 120].map((v) => (
+                        <Pressable
+                          key={v}
+                          onPress={async () => {
+                            setSpeedLimit(v);
+                            await AsyncStorage.setItem(
+                              "speedLimit",
+                              v.toString(),
+                            );
+                            setShowSpeedLimitModal(false);
+                          }}
+                          className={`px-4 py-2 rounded-lg border ${
+                            speedLimit === v
+                              ? "border-cyan-400 bg-cyan-400/20"
+                              : "border-gray-600 bg-gray-800"
+                          }`}
+                        >
+                          <Text
+                            className={`text-xl font-bold ${
+                              speedLimit === v ? "text-cyan-400" : "text-white"
+                            }`}
+                          >
+                            {v}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+
+                    {/* Desativar */}
+                    <Pressable
+                      onPress={async () => {
+                        setSpeedLimit(null);
+                        await AsyncStorage.removeItem("speedLimit");
+                        setShowSpeedLimitModal(false);
+                      }}
+                      className="border border-red-500 bg-red-500/20 px-6 py-3 rounded-lg"
+                    >
+                      <Text className="text-red-400 text-lg font-bold">
+                        Desativar
+                      </Text>
+                    </Pressable>
+                  </View>
+                </Pressable>
+              </Pressable>
+            </Modal>
 
             {/* Brightness Control */}
             <Pressable
@@ -403,11 +530,14 @@ export default function Index() {
             ) : null}
 
             {/* Speed */}
-            <Speedometer
-              speed={speed}
-              smoothSpeed={smoothSpeed}
-              inverted={inverted}
-            />
+            <View className="absolute right-44">
+              <Speedometer
+                speed={speed}
+                smoothSpeed={smoothSpeed}
+                inverted={inverted}
+                speedLimit={speedLimit}
+              />
+            </View>
           </View>
         </Pressable>
       ) : (
