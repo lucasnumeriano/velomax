@@ -1,0 +1,203 @@
+import { FontAwesome } from "@expo/vector-icons";
+import { Pressable, View, Text } from "react-native";
+import MapView from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import { LocationState } from "@/hooks/useLocation";
+
+const GOOGLE_MAPS_KEY = "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY";
+
+const DARK_MAP_STYLE = [
+  { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+  { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+  { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#38414e" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#9ca5b3" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#746855" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#f3d19c" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#17263c" }],
+  },
+  {
+    featureType: "water",
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#515c6d" }],
+  },
+];
+
+type Destination = {
+  latitude: number;
+  longitude: number;
+  placeId?: string;
+};
+
+type Props = {
+  mapRef: React.RefObject<MapView | null>;
+  location: LocationState;
+  smoothHeading: number;
+  inverted: boolean;
+  destination: Destination | null;
+  routeDistance: number | null;
+  routeDuration: number | null;
+  onRouteReady: (distance: number, duration: number) => void;
+  onPress: () => void;
+};
+
+/**
+ * Mini-mapa estilo radar exibido no canto superior esquerdo do HUD.
+ *
+ * Funcionalidades:
+ * - Mapa escuro com rotacao baseada no heading do veiculo
+ * - Seta triangular central indicando a posicao do veiculo
+ * - Rota desenhada quando ha destino definido
+ * - Overlay com ETA e distancia quando rota ativa
+ * - Toque abre o mapa em tela cheia
+ *
+ * O MapView usa inline style para width/height pois nao aceita className.
+ * A seta triangular usa border trick (sem equivalente Tailwind).
+ */
+export function MiniMap({
+  mapRef,
+  location,
+  smoothHeading,
+  inverted,
+  destination,
+  routeDistance,
+  routeDuration,
+  onRouteReady,
+  onPress,
+}: Props) {
+  const formatETA = (minutes: number) => {
+    if (minutes < 60) {
+      return `${Math.round(minutes)} min`;
+    }
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    return `${hours}h ${mins}m`;
+  };
+
+  const formatDistance = (meters: number) => {
+    if (meters < 1000) {
+      return `${Math.round(meters)} m`;
+    }
+    return `${(meters / 1000).toFixed(1)} km`;
+  };
+
+  return (
+    <Pressable
+      onPress={onPress}
+      className="absolute top-6 left-6 items-center justify-center w-[440px] h-[340px]"
+    >
+      {/* Borda externa estilo radar */}
+      <View className="absolute w-[440px] h-[340px] rounded-lg" />
+
+      {/* Mapa */}
+      <View className="bg-black overflow-hidden w-[420px] h-[320px] rounded-md">
+        <MapView
+          ref={mapRef}
+          style={{ width: 420, height: 320 }}
+          initialCamera={{
+            center: {
+              latitude: location.latitude,
+              longitude: location.longitude,
+            },
+            heading: smoothHeading,
+            pitch: 0,
+            zoom: 18,
+            altitude: 0,
+          }}
+          customMapStyle={inverted ? [] : DARK_MAP_STYLE}
+          rotateEnabled={true}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          pitchEnabled={false}
+          showsCompass={false}
+          showsBuildings={false}
+          showsTraffic={true}
+        >
+          {destination && GOOGLE_MAPS_KEY ? (
+            <MapViewDirections
+              origin={{
+                latitude: Math.round(location.latitude * 1e4) / 1e4,
+                longitude: Math.round(location.longitude * 1e4) / 1e4,
+              }}
+              destination={
+                destination.placeId
+                  ? `place_id:${destination.placeId}`
+                  : { latitude: destination.latitude, longitude: destination.longitude }
+              }
+              apikey={GOOGLE_MAPS_KEY}
+              strokeWidth={12}
+              strokeColor="#00c8ff"
+              optimizeWaypoints
+              resetOnChange={false}
+              onReady={(result) => {
+                onRouteReady(result.distance * 1000, result.duration);
+              }}
+            />
+          ) : null}
+        </MapView>
+      </View>
+
+      {/* Seta do veiculo (border trick, sem equivalente Tailwind) */}
+      <View className="absolute">
+        <View
+          style={{
+            width: 0,
+            height: 0,
+            borderLeftWidth: 16,
+            borderRightWidth: 16,
+            borderBottomWidth: 32,
+            borderLeftColor: "transparent",
+            borderRightColor: "transparent",
+            borderBottomColor: "#00c8ff",
+          }}
+        />
+      </View>
+
+      {/* Info da rota */}
+      {destination && routeDistance && routeDuration ? (
+        <View className="absolute top-2 right-2">
+          <View
+            className={`px-2 py-1 rounded flex-row items-center gap-5 min-w-[90px] ${inverted ? "bg-white/90" : "bg-gray-800/90"}`}
+          >
+            <FontAwesome
+              name="flag-checkered"
+              size={32}
+              color={inverted ? "black" : "white"}
+            />
+            <View>
+              <Text
+                className={`text-xl font-bold ${inverted ? "text-black" : "text-cyan-400"}`}
+              >
+                {formatETA(routeDuration)}
+              </Text>
+              <Text
+                className={`text-xl ${inverted ? "text-gray-700" : "text-gray-300"}`}
+              >
+                {formatDistance(routeDistance)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
