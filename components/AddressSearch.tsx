@@ -1,7 +1,6 @@
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRef, useState } from "react";
-
-const GOOGLE_MAPS_KEY = "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY";
+import { GOOGLE_MAPS_KEY } from "@/constants";
 
 type Props = {
   inverted: boolean;

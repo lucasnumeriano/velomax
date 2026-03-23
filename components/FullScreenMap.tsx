@@ -3,53 +3,13 @@ import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { AddressSearch } from "./AddressSearch";
 import { VehicleSelector } from "./VehicleSelector";
-import { LocationState } from "@/hooks/useLocation";
+import { DARK_MAP_STYLE, GOOGLE_MAPS_KEY } from "@/constants";
+import { LocationState } from "@/hooks";
+import { Destination } from "@/types";
+import { formatDistance, formatETA } from "@/utils";
 import { useState } from "react";
 
-const GOOGLE_MAPS_KEY = "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-const DARK_MAP_STYLE = [
-  { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
-  { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
-  { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
-  {
-    featureType: "road",
-    elementType: "geometry",
-    stylers: [{ color: "#38414e" }],
-  },
-  {
-    featureType: "road",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#9ca5b3" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "geometry",
-    stylers: [{ color: "#746855" }],
-  },
-  {
-    featureType: "road.highway",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#f3d19c" }],
-  },
-  {
-    featureType: "water",
-    elementType: "geometry",
-    stylers: [{ color: "#17263c" }],
-  },
-  {
-    featureType: "water",
-    elementType: "labels.text.fill",
-    stylers: [{ color: "#515c6d" }],
-  },
-];
-
-type Destination = {
-  latitude: number;
-  longitude: number;
-  placeId?: string;
-};
 
 type Props = {
   mapRef: React.RefObject<MapView | null>;
@@ -99,22 +59,6 @@ export function FullScreenMap({
 }: Props) {
   const [showSearch, setShowSearch] = useState(false);
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
-
-  const formatETA = (minutes: number) => {
-    if (minutes < 60) {
-      return `${Math.round(minutes)} min`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return `${hours}h ${mins}m`;
-  };
-
-  const formatDistance = (meters: number) => {
-    if (meters < 1000) {
-      return `${Math.round(meters)} m`;
-    }
-    return `${(meters / 1000).toFixed(1)} km`;
-  };
 
   const handleMapPress = (e: any) => {
     if (showVehicleDropdown) {

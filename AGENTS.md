@@ -13,8 +13,9 @@ It runs exclusively in **landscape right** orientation and is designed for use i
 velomax/
 ├── app/
 │   ├── _layout.tsx          # Root layout (hides status/nav bars)
-│   └── index.tsx            # Main screen orchestrator (~196 lines)
+│   └── index.tsx            # Main screen orchestrator (~190 lines)
 ├── components/
+│   ├── index.ts             # Barrel file — re-exports all components
 │   ├── AddressSearch.tsx     # Address autocomplete (Google Places API)
 │   ├── BatteryIndicator.tsx  # Battery level bar + percentage
 │   ├── BrightnessControl.tsx # Sun icon + brightness slider
@@ -26,11 +27,21 @@ velomax/
 │   ├── Speedometer.tsx       # Large numeric speed display
 │   └── VehicleSelector.tsx   # Car/motorcycle dropdown selector
 ├── hooks/
+│   ├── index.ts             # Barrel file — re-exports all hooks + types
 │   ├── useBattery.ts         # Battery level monitoring
 │   ├── useClock.ts           # Time string updater (1s interval)
 │   ├── useLocation.ts        # GPS + compass heading fusion
 │   ├── usePersistedSettings.ts # AsyncStorage settings management
 │   └── useSpeedLimit.ts      # Auto speed limit detection (Overpass API)
+├── constants/
+│   ├── index.ts             # Barrel file — re-exports all constants
+│   └── maps.ts              # GOOGLE_MAPS_KEY, DARK_MAP_STYLE
+├── types/
+│   ├── index.ts             # Barrel file — re-exports all types
+│   └── navigation.ts        # Destination type (lat/lng/placeId)
+├── utils/
+│   ├── index.ts             # Barrel file — re-exports all utils
+│   └── format.ts            # formatETA, formatDistance
 ├── assets/
 │   └── audios/               # Alert sound files
 ├── tailwind.config.js        # NativeWind config (colors: neon, panel)
@@ -87,7 +98,26 @@ className="w-[200px] min-w-[300px] relative"
 - Handle their own cleanup in `useEffect` return functions
 - Export any shared types (e.g., `LocationState`)
 
-### 5. State Management
+### 5. Imports & Barrel Files
+
+- **Always import from barrel files** (`@/components`, `@/hooks`, `@/constants`, `@/types`, `@/utils`) — never from individual files
+- Each directory (`components/`, `hooks/`, `constants/`, `types/`, `utils/`) has an `index.ts` that re-exports all public members
+- **No duplicated constants, types, or utilities** — shared code lives in its dedicated module:
+  - Map constants (`GOOGLE_MAPS_KEY`, `DARK_MAP_STYLE`) → `constants/maps.ts`
+  - Shared types (`Destination`) → `types/navigation.ts`
+  - Utility functions (`formatETA`, `formatDistance`) → `utils/format.ts`
+
+```tsx
+// WRONG - importing from individual files
+import { MiniMap } from "@/components/MiniMap";
+import { useLocation } from "@/hooks/useLocation";
+
+// CORRECT - import from barrel
+import { MiniMap } from "@/components";
+import { useLocation } from "@/hooks";
+```
+
+### 6. State Management
 
 - **No global state library** - all state is local via `useState`/`useRef`
 - **Persistence** via `@react-native-async-storage/async-storage`

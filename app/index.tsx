@@ -1,16 +1,21 @@
-import { BatteryIndicator } from "@/components/BatteryIndicator";
-import { BrightnessControl } from "@/components/BrightnessControl";
-import { Clock } from "@/components/Clock";
-import { FullScreenMap } from "@/components/FullScreenMap";
-import { MiniMap } from "@/components/MiniMap";
-import { SpeedLimitButton } from "@/components/SpeedLimitButton";
-import { SpeedLimitModal } from "@/components/SpeedLimitModal";
-import { Speedometer } from "@/components/Speedometer";
-import { useBattery } from "@/hooks/useBattery";
-import { useClock } from "@/hooks/useClock";
-import { useLocation } from "@/hooks/useLocation";
-import { usePersistedSettings } from "@/hooks/usePersistedSettings";
-import { useSpeedLimit } from "@/hooks/useSpeedLimit";
+import {
+  BatteryIndicator,
+  BrightnessControl,
+  Clock,
+  FullScreenMap,
+  MiniMap,
+  SpeedLimitButton,
+  SpeedLimitModal,
+  Speedometer,
+} from "@/components";
+import {
+  useBattery,
+  useClock,
+  useLocation,
+  usePersistedSettings,
+  useSpeedLimit,
+} from "@/hooks";
+import type { Destination } from "@/types";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
@@ -49,11 +54,7 @@ export default function Index() {
   );
 
   // --- Estado de navegacao ---
-  const [destination, setDestination] = useState<{
-    latitude: number;
-    longitude: number;
-    placeId?: string;
-  } | null>(null);
+  const [destination, setDestination] = useState<Destination | null>(null);
   const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
 
@@ -81,11 +82,7 @@ export default function Index() {
     setRouteDuration(null);
   };
 
-  const handleMapDestination = (coordinate: {
-    latitude: number;
-    longitude: number;
-    placeId?: string;
-  }) => {
+  const handleMapDestination = (coordinate: Destination) => {
     setDestination(coordinate);
   };
 
