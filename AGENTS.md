@@ -12,7 +12,7 @@ It runs exclusively in **landscape right** orientation and is designed for use i
 ```
 velomax/
 ├── app/
-│   ├── _layout.tsx          # Root layout (hides status/nav bars)
+│   ├── _layout.tsx          # Root layout (hides status/nav bars, locks orientation)
 │   └── index.tsx            # Main screen orchestrator (~190 lines)
 ├── components/
 │   ├── index.ts             # Barrel file — re-exports all components
@@ -211,6 +211,7 @@ Key dependencies used across the codebase:
 | `expo-battery` | Battery level monitoring |
 | `expo-brightness` | Screen brightness control |
 | `expo-keep-awake` | Prevent screen sleep |
+| `expo-screen-orientation` | Lock orientation to landscape right |
 | `@react-native-async-storage/async-storage` | Persistent settings |
 | `@react-native-community/slider` | Brightness slider |
 

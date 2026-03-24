@@ -1,4 +1,4 @@
-import { Dimensions, Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { AddressSearch } from "./AddressSearch";
@@ -8,8 +8,6 @@ import { LocationState } from "@/hooks";
 import { Destination } from "@/types";
 import { formatDistance, formatETA } from "@/utils";
 import { useState } from "react";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 type Props = {
   mapRef: React.RefObject<MapView | null>;
@@ -57,6 +55,7 @@ export function FullScreenMap({
   onClearRoute,
   onVehicleMode,
 }: Props) {
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [showSearch, setShowSearch] = useState(false);
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
 
@@ -105,7 +104,7 @@ export function FullScreenMap({
     <View className="flex-1">
       <MapView
         ref={mapRef}
-        style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+        style={{ width: screenWidth, height: screenHeight }}
         initialCamera={{
           center: {
             latitude: location.latitude,

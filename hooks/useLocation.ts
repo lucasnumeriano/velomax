@@ -49,6 +49,7 @@ export function useLocation(
   const compassHeadingRef = useRef<number | null>(null);
   const speedRef = useRef(0);
   const fullMapRef = useRef(isFullMap);
+  const locationReadyRef = useRef(false);
 
   // Manter ref atualizada com o valor corrente
   useEffect(() => {
@@ -57,6 +58,7 @@ export function useLocation(
 
   useEffect(() => {
     let headingSubscription: Location.LocationSubscription | null = null;
+    let positionSubscription: Location.LocationSubscription | null = null;
 
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -74,7 +76,13 @@ export function useLocation(
         compassHeadingRef.current = heading;
 
         // Quando parado/lento, atualizar mapa direto pelo compass
-        if (speedRef.current < 5 && mapRef.current && !fullMapRef.current) {
+        // Só anima se já recebeu pelo menos uma localização GPS (MapView montado)
+        if (
+          speedRef.current < 5 &&
+          locationReadyRef.current &&
+          mapRef.current &&
+          !fullMapRef.current
+        ) {
           setSmoothHeading((prev) => {
             const newHeading = smoothAngle(prev, heading);
 
@@ -104,7 +112,7 @@ export function useLocation(
         }
       });
 
-      await Location.watchPositionAsync(
+      positionSubscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           timeInterval: 500,
@@ -115,6 +123,7 @@ export function useLocation(
 
           setSpeed(kmh);
           speedRef.current = kmh;
+          locationReadyRef.current = true;
 
           setSmoothSpeed((prev) => prev + (kmh - prev) * 0.2);
 
@@ -164,6 +173,7 @@ export function useLocation(
 
     return () => {
       headingSubscription?.remove();
+      positionSubscription?.remove();
     };
   }, []);
 
