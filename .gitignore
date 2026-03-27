@@ -42,6 +42,11 @@ app-example
 /ios
 /android
 
+# builds
+*.apk
+*.ipa
+*.app
+
 # vscode
 .vscode/
 
