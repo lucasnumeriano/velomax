@@ -1,5 +1,4 @@
-/** Chave da API do Google Maps usada em mapas e busca de enderecos. */
-export const GOOGLE_MAPS_KEY = "AIzaSyD8l0IZqrWKXn5KQP1B_RPX8CjRuohd6sY";
+export { GOOGLE_MAPS_KEY } from "./env";
 
 /** Estilo escuro para o MapView (tema noturno do HUD). */
 export const DARK_MAP_STYLE = [
