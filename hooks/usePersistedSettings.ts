@@ -53,13 +53,17 @@ export function usePersistedSettings(): PersistedSettings & PersistedActions {
         setInverted(savedTheme === "inverted");
       }
 
-      if (savedBrightness !== null) {
-        const brightnessValue = parseFloat(savedBrightness);
-        setBrightness(brightnessValue);
-        await Brightness.setBrightnessAsync(brightnessValue);
-      } else {
-        const currentBrightness = await Brightness.getBrightnessAsync();
-        setBrightness(currentBrightness);
+      try {
+        if (savedBrightness !== null) {
+          const brightnessValue = parseFloat(savedBrightness);
+          setBrightness(brightnessValue);
+          await Brightness.setBrightnessAsync(brightnessValue);
+        } else {
+          const currentBrightness = await Brightness.getBrightnessAsync();
+          setBrightness(currentBrightness);
+        }
+      } catch {
+        // Activity pode nao estar disponivel durante inicializacao no Android
       }
 
       if (savedLimit !== null) {

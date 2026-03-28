@@ -7,6 +7,7 @@ import {
   SpeedLimitButton,
   SpeedLimitModal,
   Speedometer,
+  StartupOverlay,
 } from "@/components";
 import {
   useBattery,
@@ -61,6 +62,8 @@ export default function Index() {
   const [routeDuration, setRouteDuration] = useState<number | null>(null);
 
   // --- Estado de UI ---
+  const [startupDone, setStartupDone] = useState(false);
+  const [speedometerReady, setSpeedometerReady] = useState(false);
   const [showBrightness, setShowBrightness] = useState(false);
   const [showSpeedLimitModal, setShowSpeedLimitModal] = useState(false);
 
@@ -168,6 +171,8 @@ export default function Index() {
                 smoothSpeed={smoothSpeed}
                 inverted={settings.inverted}
                 speedLimit={speedLimitHook.speedLimit}
+                startupDone={speedometerReady}
+                onStartupComplete={() => setSpeedometerReady(true)}
               />
             </View>
           </View>
@@ -192,6 +197,11 @@ export default function Index() {
           />
         ) : null
       )}
+
+      {/* Animacao de startup CRT */}
+      {!startupDone ? (
+        <StartupOverlay onComplete={() => setStartupDone(true)} />
+      ) : null}
 
       {/* Toast global para notificacoes (rate limit, etc) */}
       <Toast position="bottom" bottomOffset={20} />
