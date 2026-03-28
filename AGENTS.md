@@ -48,6 +48,12 @@ velomax/
 └── app.json                  # Expo config (landscape orientation)
 ```
 
+## Git Conventions
+
+- **Commit messages must be in English**, short, and follow conventional commits (`feat:`, `fix:`, `refactor:`, `docs:`, `chore:`, etc.)
+- Keep commit messages concise — one short sentence, max two
+- Use imperative mood (e.g., "add startup animation", not "added startup animation")
+
 ## Coding Standards
 
 ### 1. Conditional Rendering
