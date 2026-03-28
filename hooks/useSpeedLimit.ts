@@ -262,13 +262,19 @@ export function useSpeedLimit(
   const autoSpeedLimitRef = useRef<number | null>(null);
   const flashAnim = useRef(new Animated.Value(0)).current;
 
+  // Ref para location — evita que o useEffect do polling reinicie a cada update GPS
+  const locationRef = useRef(location);
+
+  // Ref para evitar toast repetido de rate limit / indisponivel
+  const toastShownRef = useRef(false);
+
   // Refs para alarme de excesso de velocidade
   const isExceedingRef = useRef(false);
   const exceedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speedRef = useRef(speed);
   const speedLimitRef = useRef(speedLimit);
 
-  // Manter refs atualizados para uso nos timers
+  // Manter refs atualizados para uso nos timers/polling
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
@@ -276,6 +282,10 @@ export function useSpeedLimit(
   useEffect(() => {
     speedLimitRef.current = speedLimit;
   }, [speedLimit]);
+
+  useEffect(() => {
+    locationRef.current = location;
+  }, [location]);
 
   // Carregar som de alerta
   useEffect(() => {
@@ -403,24 +413,28 @@ export function useSpeedLimit(
     }
 
     const checkSpeedLimit = async () => {
-      if (!location) return;
+      const loc = locationRef.current;
+      if (!loc) return;
 
-      const result = await fetchRoadSpeedLimit(
-        location.latitude,
-        location.longitude,
-      );
+      const result = await fetchRoadSpeedLimit(loc.latitude, loc.longitude);
 
       if (result.source === "error") return;
 
-      // Rate limit — exibir toast e usar fallback
+      // Rate limit — exibir toast uma unica vez e usar fallback
       if (result.source === "rate_limit") {
-        Toast.show({
-          type: "info",
-          text1: "Limite automatico indisponivel",
-          text2: "Usando 60 km/h como fallback. Tente novamente em breve.",
-          visibilityTime: 5000,
-          position: "bottom",
-        });
+        if (!toastShownRef.current) {
+          toastShownRef.current = true;
+          Toast.show({
+            type: "info",
+            text1: "Limite automatico indisponivel",
+            text2: "Usando 60 km/h como fallback. Tente novamente em breve.",
+            visibilityTime: 10000,
+            position: "bottom",
+          });
+        }
+      } else {
+        // Condicao normalizada — resetar flag para permitir toast futuro
+        toastShownRef.current = false;
       }
 
       setRoadName(result.roadName ?? null);
@@ -451,7 +465,7 @@ export function useSpeedLimit(
         speedLimitIntervalRef.current = null;
       }
     };
-  }, [speedLimitMode, location]);
+  }, [speedLimitMode]);
 
   return {
     speedLimit,
