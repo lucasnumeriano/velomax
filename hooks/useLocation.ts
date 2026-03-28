@@ -84,8 +84,13 @@ export function useLocation(
   const CALIBRATION_BUFFER_SIZE = 10;
   const CALIBRATION_MIN_SAMPLES = 5;
   const CALIBRATION_MIN_SPEED_KMH = 10;
+  // Pre-calibracao: em LANDSCAPE_RIGHT, o topo do celular aponta para a esquerda
+  // da tela, entao o compass heading bruto esta 90 graus defasado da direcao
+  // "frontal" do app. Inicializar com +90 como estimativa ate a auto-calibracao
+  // (que precisa de movimento >10 km/h) substituir pelo valor real.
+  const LANDSCAPE_RIGHT_OFFSET = 90;
   const calibrationBufferRef = useRef<number[]>([]);
-  const calibratedOffsetRef = useRef<number>(0);
+  const calibratedOffsetRef = useRef<number>(LANDSCAPE_RIGHT_OFFSET);
   const isCalibrated = useRef(false);
   const gpsHeadingRef = useRef<number | null>(null);
 
@@ -115,10 +120,10 @@ export function useLocation(
         const rawCompass = headingData.trueHeading;
         compassHeadingRef.current = rawCompass;
 
-        // Heading corrigido com offset calibrado para uso no mapa
-        const correctedHeading = isCalibrated.current
-          ? (rawCompass + calibratedOffsetRef.current + 360) % 360
-          : rawCompass;
+        // Heading corrigido com offset (pre-calibracao: +90 para landscape-right,
+        // pos-calibracao: valor aprendido do GPS)
+        const correctedHeading =
+          (rawCompass + calibratedOffsetRef.current + 360) % 360;
 
         // Quando em compass mode (histerese), atualizar mapa direto pelo compass
         // Só anima se já recebeu pelo menos uma localização GPS (MapView montado)
@@ -219,9 +224,8 @@ export function useLocation(
             // Em GPS mode, usa GPS heading diretamente (ja e confiavel em movimento).
             let targetHeading: number;
             if (useCompassRef.current && compassHeadingRef.current !== null) {
-              targetHeading = isCalibrated.current
-                ? (compassHeadingRef.current + calibratedOffsetRef.current + 360) % 360
-                : compassHeadingRef.current;
+              targetHeading =
+                (compassHeadingRef.current + calibratedOffsetRef.current + 360) % 360;
             } else {
               targetHeading =
                 locationData.coords.heading ?? prevHeading;
