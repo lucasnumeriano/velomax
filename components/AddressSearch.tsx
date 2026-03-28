@@ -1,6 +1,7 @@
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { useRef, useState } from "react";
 import { GOOGLE_MAPS_KEY } from "@/constants";
+import Toast from "react-native-toast-message";
 
 type Props = {
   inverted: boolean;
@@ -39,6 +40,15 @@ export function AddressSearch({ inverted, location, onSelectPlace }: Props) {
           `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(text)}&key=${GOOGLE_MAPS_KEY}&language=pt-BR&types=geocode|establishment${locationBias}`,
         );
         const data = await res.json();
+        if (data.status && data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+          Toast.show({
+            type: "error",
+            text1: "Erro na busca de enderecos",
+            text2: `Google Places API: ${data.status} — ${data.error_message ?? "verifique a chave e billing"}`,
+            visibilityTime: 10000,
+          });
+          return;
+        }
         if (data.predictions) {
           setSearchResults(
             data.predictions.map((p: any) => ({
@@ -48,7 +58,12 @@ export function AddressSearch({ inverted, location, onSelectPlace }: Props) {
           );
         }
       } catch (e) {
-        console.error("Erro na busca:", e);
+        Toast.show({
+          type: "error",
+          text1: "Erro na busca de enderecos",
+          text2: `Falha na requisicao: ${e instanceof Error ? e.message : String(e)}`,
+          visibilityTime: 10000,
+        });
       }
     }, 400);
   };
@@ -59,6 +74,15 @@ export function AddressSearch({ inverted, location, onSelectPlace }: Props) {
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry&key=${GOOGLE_MAPS_KEY}`,
       );
       const data = await res.json();
+      if (data.status && data.status !== "OK") {
+        Toast.show({
+          type: "error",
+          text1: "Erro ao obter detalhes do lugar",
+          text2: `Google Places API: ${data.status} — ${data.error_message ?? "verifique a chave e billing"}`,
+          visibilityTime: 10000,
+        });
+        return;
+      }
       if (data.result?.geometry?.location) {
         const { lat, lng } = data.result.geometry.location;
         onSelectPlace({ latitude: lat, longitude: lng });
@@ -66,7 +90,12 @@ export function AddressSearch({ inverted, location, onSelectPlace }: Props) {
         setSearchResults([]);
       }
     } catch (e) {
-      console.error("Erro ao obter detalhes do lugar:", e);
+      Toast.show({
+        type: "error",
+        text1: "Erro ao obter detalhes do lugar",
+        text2: `Falha na requisicao: ${e instanceof Error ? e.message : String(e)}`,
+        visibilityTime: 10000,
+      });
     }
   };
 

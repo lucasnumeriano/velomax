@@ -74,9 +74,9 @@ export function useLocation(
         // magnetica — causa desalinhamento constante no mapa.
         if (headingData.trueHeading < 0) return;
 
-        // Compensar landscape direito: sensor reporta eixo portrait (topo do telefone),
-        // em landscape direito o topo aponta pra esquerda, +90 alinha com a frente do veiculo
-        const heading = (headingData.trueHeading + 90) % 360;
+        // No Android, o SensorManager ja compensa a rotacao de tela ao reportar heading,
+        // entao NAO adicionar +90 para landscape — isso causava offset constante de ~32 graus.
+        const heading = headingData.trueHeading;
         compassHeadingRef.current = heading;
 
         // Quando em compass mode (histerese), atualizar mapa direto pelo compass

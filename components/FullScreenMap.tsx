@@ -8,6 +8,7 @@ import { LocationState } from "@/hooks";
 import { Destination } from "@/types";
 import { formatDistance, formatETA } from "@/utils";
 import { useState } from "react";
+import Toast from "react-native-toast-message";
 
 type Props = {
   mapRef: React.RefObject<MapView | null>;
@@ -155,6 +156,14 @@ export function FullScreenMap({
             resetOnChange={false}
             onReady={(result) => {
               onRouteReady(result.distance * 1000, result.duration);
+            }}
+            onError={(error) => {
+              Toast.show({
+                type: "error",
+                text1: "Erro ao tracar rota",
+                text2: `Google Directions API: ${error ?? "verifique a chave e billing"}`,
+                visibilityTime: 10000,
+              });
             }}
           />
         ) : null}
