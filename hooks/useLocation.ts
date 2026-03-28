@@ -13,6 +13,29 @@ function smoothAngle(current: number, target: number) {
   return (current + diff * factor + 360) % 360;
 }
 
+/**
+ * Calcula a diferença angular entre dois headings (em graus, -180 a +180).
+ */
+function angleDelta(from: number, to: number): number {
+  return ((to - from + 540) % 360) - 180;
+}
+
+/**
+ * Calcula a média circular de um array de ângulos em graus.
+ * Usa representação sin/cos para lidar corretamente com wrap-around 0°/360°.
+ */
+function circularMean(angles: number[]): number {
+  if (angles.length === 0) return 0;
+  const toRad = Math.PI / 180;
+  let sinSum = 0;
+  let cosSum = 0;
+  for (const a of angles) {
+    sinSum += Math.sin(a * toRad);
+    cosSum += Math.cos(a * toRad);
+  }
+  return ((Math.atan2(sinSum, cosSum) / toRad) + 360) % 360;
+}
+
 export type LocationState = {
   latitude: number;
   longitude: number;
@@ -54,6 +77,18 @@ export function useLocation(
   // Entra em compass mode abaixo de COMPASS_ENTER (5), so volta para GPS acima de COMPASS_EXIT (8).
   const useCompassRef = useRef(false);
 
+  // Auto-calibracao: quando em movimento (GPS heading confiavel), mede a diferenca
+  // entre GPS heading e compass heading. Aplica essa correcao quando parado.
+  // Isso elimina qualquer offset fixo causado por compensacao (ou falta dela)
+  // de landscape orientation no SensorManager do Android.
+  const CALIBRATION_BUFFER_SIZE = 10;
+  const CALIBRATION_MIN_SAMPLES = 5;
+  const CALIBRATION_MIN_SPEED_KMH = 10;
+  const calibrationBufferRef = useRef<number[]>([]);
+  const calibratedOffsetRef = useRef<number>(0);
+  const isCalibrated = useRef(false);
+  const gpsHeadingRef = useRef<number | null>(null);
+
   // Manter ref atualizada com o valor corrente
   useEffect(() => {
     fullMapRef.current = isFullMap;
@@ -74,10 +109,16 @@ export function useLocation(
         // magnetica — causa desalinhamento constante no mapa.
         if (headingData.trueHeading < 0) return;
 
-        // No Android, o SensorManager ja compensa a rotacao de tela ao reportar heading,
-        // entao NAO adicionar +90 para landscape — isso causava offset constante de ~32 graus.
-        const heading = headingData.trueHeading;
-        compassHeadingRef.current = heading;
+        // Armazena o heading bruto do compass. O offset calibrado sera
+        // aplicado no momento do uso (nao aqui), para que a calibracao
+        // capture sempre o delta real entre GPS e compass.
+        const rawCompass = headingData.trueHeading;
+        compassHeadingRef.current = rawCompass;
+
+        // Heading corrigido com offset calibrado para uso no mapa
+        const correctedHeading = isCalibrated.current
+          ? (rawCompass + calibratedOffsetRef.current + 360) % 360
+          : rawCompass;
 
         // Quando em compass mode (histerese), atualizar mapa direto pelo compass
         // Só anima se já recebeu pelo menos uma localização GPS (MapView montado)
@@ -88,7 +129,7 @@ export function useLocation(
           !fullMapRef.current
         ) {
           setSmoothHeading((prev) => {
-            const newHeading = smoothAngle(prev, heading);
+            const newHeading = smoothAngle(prev, correctedHeading);
 
             setLocation((prevLocation) => {
               if (!prevLocation) return prevLocation;
@@ -136,6 +177,33 @@ export function useLocation(
           const smoothFactor = speedDiff > 20 ? 0.5 : speedDiff > 5 ? 0.35 : 0.25;
           setSmoothSpeed((prev) => prev + (kmh - prev) * smoothFactor);
 
+          // Armazenar GPS heading para calibracao
+          const gpsHeading = locationData.coords.heading;
+          if (gpsHeading != null && gpsHeading >= 0) {
+            gpsHeadingRef.current = gpsHeading;
+          }
+
+          // Auto-calibracao: quando em velocidade suficiente para GPS heading confiavel,
+          // medir o delta entre GPS heading e compass heading bruto (sem offset).
+          // Isso captura qualquer compensacao (ou falta dela) do Android para landscape.
+          if (
+            kmh >= CALIBRATION_MIN_SPEED_KMH &&
+            gpsHeadingRef.current !== null &&
+            compassHeadingRef.current !== null
+          ) {
+            // Delta = quanto precisamos somar ao compass para igualar ao GPS
+            const delta = angleDelta(compassHeadingRef.current, gpsHeadingRef.current);
+            const buffer = calibrationBufferRef.current;
+            buffer.push(delta);
+            if (buffer.length > CALIBRATION_BUFFER_SIZE) {
+              buffer.shift();
+            }
+            if (buffer.length >= CALIBRATION_MIN_SAMPLES) {
+              calibratedOffsetRef.current = circularMean(buffer);
+              isCalibrated.current = true;
+            }
+          }
+
           // Histerese: evita oscilacao entre GPS e compass ao redor do threshold
           if (useCompassRef.current && kmh > 8) {
             useCompassRef.current = false;
@@ -146,12 +214,14 @@ export function useLocation(
           setLocation((prevLocation) => {
             const prevHeading = prevLocation?.heading ?? 0;
 
-            // Fusao GPS/Compass com histerese.
-            // Quando em movimento, NAO usar compass como fallback — evita
-            // contaminacao por magHeading com offset de declinacao magnetica.
+            // Fusao GPS/Compass com histerese e calibracao.
+            // Em compass mode, aplica offset calibrado ao compass heading.
+            // Em GPS mode, usa GPS heading diretamente (ja e confiavel em movimento).
             let targetHeading: number;
             if (useCompassRef.current && compassHeadingRef.current !== null) {
-              targetHeading = compassHeadingRef.current;
+              targetHeading = isCalibrated.current
+                ? (compassHeadingRef.current + calibratedOffsetRef.current + 360) % 360
+                : compassHeadingRef.current;
             } else {
               targetHeading =
                 locationData.coords.heading ?? prevHeading;
