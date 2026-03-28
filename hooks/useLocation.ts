@@ -66,13 +66,14 @@ export function useLocation(
 
       // Compass heading para quando estiver parado/lento
       headingSubscription = await Location.watchHeadingAsync((headingData) => {
-        const rawHeading =
-          headingData.trueHeading >= 0
-            ? headingData.trueHeading
-            : headingData.magHeading;
+        // Usar apenas trueHeading (compensado para declinacao magnetica).
+        // magHeading tem offset de ~21 graus no Brasil devido a declinacao
+        // magnetica — causa desalinhamento constante no mapa.
+        if (headingData.trueHeading < 0) return;
+
         // Compensar landscape direito: sensor reporta eixo portrait (topo do telefone),
-        // em landscape direito o topo aponta pra direita, +90 alinha com a frente do veiculo
-        const heading = (rawHeading + 90) % 360;
+        // em landscape direito o topo aponta pra esquerda, +90 alinha com a frente do veiculo
+        const heading = (headingData.trueHeading + 90) % 360;
         compassHeadingRef.current = heading;
 
         // Quando parado/lento, atualizar mapa direto pelo compass
@@ -130,15 +131,15 @@ export function useLocation(
           setLocation((prevLocation) => {
             const prevHeading = prevLocation?.heading ?? 0;
 
-            // Fusao GPS/Compass: usar compass quando lento, GPS quando em movimento
+            // Fusao GPS/Compass: usar compass quando lento, GPS quando em movimento.
+            // Quando em movimento, NAO usar compass como fallback — evita
+            // contaminacao por magHeading com offset de declinacao magnetica.
             let targetHeading: number;
             if (kmh < 5 && compassHeadingRef.current !== null) {
               targetHeading = compassHeadingRef.current;
             } else {
               targetHeading =
-                locationData.coords.heading ??
-                compassHeadingRef.current ??
-                prevHeading;
+                locationData.coords.heading ?? prevHeading;
             }
 
             const newHeading = smoothAngle(prevHeading, targetHeading);
