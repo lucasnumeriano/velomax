@@ -50,6 +50,9 @@ export function useLocation(
   const speedRef = useRef(0);
   const fullMapRef = useRef(isFullMap);
   const locationReadyRef = useRef(false);
+  // Histerese para evitar oscilacao entre GPS e compass heading ao parar/andar.
+  // Entra em compass mode abaixo de COMPASS_ENTER (5), so volta para GPS acima de COMPASS_EXIT (8).
+  const useCompassRef = useRef(false);
 
   // Manter ref atualizada com o valor corrente
   useEffect(() => {
@@ -76,10 +79,10 @@ export function useLocation(
         const heading = (headingData.trueHeading + 90) % 360;
         compassHeadingRef.current = heading;
 
-        // Quando parado/lento, atualizar mapa direto pelo compass
+        // Quando em compass mode (histerese), atualizar mapa direto pelo compass
         // Só anima se já recebeu pelo menos uma localização GPS (MapView montado)
         if (
-          speedRef.current < 5 &&
+          useCompassRef.current &&
           locationReadyRef.current &&
           mapRef.current &&
           !fullMapRef.current
@@ -120,22 +123,34 @@ export function useLocation(
           distanceInterval: 0,
         },
         (locationData) => {
-          const kmh = Math.max(0, (locationData.coords.speed ?? 0) * 3.6);
+          const rawKmh = Math.max(0, (locationData.coords.speed ?? 0) * 3.6);
+          // Threshold: abaixo de 2 km/h e ruido do GPS, tratar como parado
+          const kmh = rawKmh < 2 ? 0 : rawKmh;
 
           setSpeed(kmh);
           speedRef.current = kmh;
           locationReadyRef.current = true;
 
-          setSmoothSpeed((prev) => prev + (kmh - prev) * 0.2);
+          // Fator adaptativo: converge mais rapido quando desacelerando forte
+          const speedDiff = Math.abs(kmh - smoothSpeed);
+          const smoothFactor = speedDiff > 20 ? 0.5 : speedDiff > 5 ? 0.35 : 0.25;
+          setSmoothSpeed((prev) => prev + (kmh - prev) * smoothFactor);
+
+          // Histerese: evita oscilacao entre GPS e compass ao redor do threshold
+          if (useCompassRef.current && kmh > 8) {
+            useCompassRef.current = false;
+          } else if (!useCompassRef.current && kmh < 5) {
+            useCompassRef.current = true;
+          }
 
           setLocation((prevLocation) => {
             const prevHeading = prevLocation?.heading ?? 0;
 
-            // Fusao GPS/Compass: usar compass quando lento, GPS quando em movimento.
+            // Fusao GPS/Compass com histerese.
             // Quando em movimento, NAO usar compass como fallback — evita
             // contaminacao por magHeading com offset de declinacao magnetica.
             let targetHeading: number;
-            if (kmh < 5 && compassHeadingRef.current !== null) {
+            if (useCompassRef.current && compassHeadingRef.current !== null) {
               targetHeading = compassHeadingRef.current;
             } else {
               targetHeading =
