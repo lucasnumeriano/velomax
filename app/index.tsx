@@ -21,6 +21,7 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import MapView from "react-native-maps";
+import Toast from "react-native-toast-message";
 
 /**
  * Tela principal do VeloMax.
@@ -51,6 +52,7 @@ export default function Index() {
     location,
     settings.speedLimitMode,
     settings.savedSpeedLimit,
+    speed,
   );
 
   // --- Estado de navegacao ---
@@ -190,6 +192,9 @@ export default function Index() {
           />
         ) : null
       )}
+
+      {/* Toast global para notificacoes (rate limit, etc) */}
+      <Toast position="bottom" bottomOffset={20} />
     </>
   );
 }
