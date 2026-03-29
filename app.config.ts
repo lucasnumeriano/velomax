@@ -39,6 +39,7 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    "expo-sqlite",
     [
       "expo-screen-orientation",
       {
