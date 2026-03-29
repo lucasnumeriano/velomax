@@ -2,9 +2,12 @@ import React from "react";
 import { View } from "react-native";
 import Svg, {
   Defs,
+  G,
+  Line,
   LinearGradient,
-  Stop,
   Path,
+  Stop,
+  Text as SvgText,
 } from "react-native-svg";
 
 type Props = {
@@ -15,6 +18,9 @@ type Props = {
 
 const SVG_WIDTH = 100;
 const SVG_HEIGHT = 290;
+
+/** Velocidades onde aparecem marcadores e numeros */
+const TICK_SPEEDS = [40, 80, 120, 160, 200];
 
 /**
  * Path do arco em formato "taco de hockey" — base larga e reta,
@@ -42,6 +48,8 @@ const BASE_PATH = "M 0 285 L 40 285 L 37 270 L 3 270 Z";
 
 const STROKE_WIDTH = 3.5;
 
+const VIEWBOX = `0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`;
+
 /**
  * Barra curvada de velocidade com formato de "taco de hockey".
  *
@@ -50,8 +58,11 @@ const STROKE_WIDTH = 3.5;
  * Adapta cores conforme o tema (inverted): bordas brancas no escuro,
  * bordas pretas no claro.
  *
+ * Inclui marcadores de velocidade (ticks) com numeros pequenos
+ * ao lado esquerdo do arco, na mesma cor da borda ghost.
+ *
  * Usa tres camadas sobrepostas:
- * 1. Ghost outline — contorno completo com opacidade baixa
+ * 1. Ghost outline — contorno completo com opacidade baixa + ticks
  * 2. Base overlay — faixa horizontal inferior com opacidade extra
  * 3. Speed fill — borda gradiente + fill sutil, cortado por View
  *    com overflow:hidden e altura dinamica de baixo para cima
@@ -59,28 +70,21 @@ const STROKE_WIDTH = 3.5;
  * Inline styles obrigatorios: SVG components requerem style prop,
  * e a altura dinamica da View de clip precisa de calculo em runtime.
  */
-export function SpeedArc({
-  speed,
-  maxSpeed = 240,
-  inverted = false,
-}: Props) {
+export function SpeedArc({ speed, maxSpeed = 240, inverted = false }: Props) {
   const fillPercent = Math.min(Math.max(speed, 0) / maxSpeed, 1);
   const fillHeight = Math.round(SVG_HEIGHT * fillPercent);
 
-  const ghostStroke = inverted
-    ? "rgba(0,0,0,0.12)"
-    : "rgba(255,255,255,0.12)";
-  const baseFill = inverted
-    ? "rgba(0,0,0,0.08)"
-    : "rgba(255,255,255,0.08)";
+  const ghostStroke = inverted ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.12)";
+  const baseFill = inverted ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.08)";
+  const tickColor = inverted ? "#374151" : "#9ca3af";
 
   return (
     <View style={{ width: SVG_WIDTH, height: SVG_HEIGHT, marginRight: -8 }}>
-      {/* Camada 1: Ghost outline — contorno completo, dim */}
+      {/* Camada 1: Ghost outline + ticks — contorno completo, dim */}
       <Svg
         width={SVG_WIDTH}
         height={SVG_HEIGHT}
-        viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
+        viewBox={VIEWBOX}
         style={{ position: "absolute", top: 0, left: 0 }}
       >
         <Path
@@ -92,6 +96,32 @@ export function SpeedArc({
         />
         {/* Base com opacidade extra */}
         <Path d={BASE_PATH} fill={baseFill} stroke="none" />
+
+        {/* Marcadores de velocidade com numeros — lado direito */}
+        {TICK_SPEEDS.map((s) => {
+          const y = SVG_HEIGHT * (1 - s / maxSpeed);
+          return (
+            <G key={s}>
+              <Line
+                x1={38}
+                y1={y}
+                x2={44}
+                y2={y}
+                stroke={tickColor}
+                strokeWidth={1}
+              />
+              <SvgText
+                x={47}
+                y={y + 4}
+                fill={tickColor}
+                fontSize={16}
+                textAnchor="start"
+              >
+                {s}
+              </SvgText>
+            </G>
+          );
+        })}
       </Svg>
 
       {/* Camada 2: Speed fill — borda gradiente + fill sutil, cortado */}
@@ -108,7 +138,7 @@ export function SpeedArc({
         <Svg
           width={SVG_WIDTH}
           height={SVG_HEIGHT}
-          viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
+          viewBox={VIEWBOX}
           style={{ position: "absolute", bottom: 0, left: 0 }}
         >
           <Defs>
