@@ -6,6 +6,7 @@ export { FullScreenMap } from "./FullScreenMap";
 export { MiniMap } from "./MiniMap";
 export { SpeedLimitButton } from "./SpeedLimitButton";
 export { SpeedLimitModal } from "./SpeedLimitModal";
+export { SpeedArc } from "./SpeedArc";
 export { Speedometer } from "./Speedometer";
 export { StartupOverlay } from "./StartupOverlay";
 export { VehicleSelector } from "./VehicleSelector";

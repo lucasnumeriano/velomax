@@ -6,10 +6,12 @@ import MapView from "react-native-maps";
  * Suaviza a transição entre dois ângulos, evitando saltos bruscos.
  * Usa fator adaptativo: curvas fortes convergem mais rápido.
  */
-function smoothAngle(current: number, target: number) {
+function smoothAngle(current: number, target: number, compassMode = false) {
   const diff = ((target - current + 540) % 360) - 180;
   const absDiff = Math.abs(diff);
-  const factor = absDiff > 45 ? 0.5 : absDiff > 15 ? 0.35 : 0.2;
+  const factor = compassMode
+    ? absDiff > 45 ? 0.8 : absDiff > 15 ? 0.6 : 0.4
+    : absDiff > 45 ? 0.5 : absDiff > 15 ? 0.35 : 0.2;
   return (current + diff * factor + 360) % 360;
 }
 
@@ -134,7 +136,7 @@ export function useLocation(
           !fullMapRef.current
         ) {
           setSmoothHeading((prev) => {
-            const newHeading = smoothAngle(prev, correctedHeading);
+            const newHeading = smoothAngle(prev, correctedHeading, true);
 
             setLocation((prevLocation) => {
               if (!prevLocation) return prevLocation;
@@ -148,7 +150,7 @@ export function useLocation(
                   heading: newHeading,
                   zoom: 19,
                 },
-                { duration: 300 },
+                { duration: 150 },
               );
 
               return {
@@ -170,16 +172,23 @@ export function useLocation(
         },
         (locationData) => {
           const rawKmh = Math.max(0, (locationData.coords.speed ?? 0) * 3.6);
-          // Threshold: abaixo de 2 km/h e ruido do GPS, tratar como parado
-          const kmh = rawKmh < 2 ? 0 : rawKmh;
+          // Threshold: abaixo de 5 km/h e ruido do GPS, tratar como parado
+          const kmh = rawKmh < 5 ? 0 : rawKmh;
 
           setSpeed(kmh);
           speedRef.current = kmh;
           locationReadyRef.current = true;
 
-          // Fator adaptativo: converge mais rapido quando desacelerando forte
-          const speedDiff = Math.abs(kmh - smoothSpeed);
-          const smoothFactor = speedDiff > 20 ? 0.5 : speedDiff > 5 ? 0.35 : 0.25;
+          // Fator adaptativo: converge mais rapido quando desacelerando forte.
+          // Quando parado (kmh === 0) e smooth speed baixa, usar fator agressivo
+          // para zerar rapidamente ao inves de arrastar em 4-7 km/h.
+          const smoothFactor =
+            kmh === 0 && smoothSpeed < 10
+              ? 0.7
+              : (() => {
+                  const speedDiff = Math.abs(kmh - smoothSpeed);
+                  return speedDiff > 20 ? 0.5 : speedDiff > 5 ? 0.35 : 0.25;
+                })();
           setSmoothSpeed((prev) => prev + (kmh - prev) * smoothFactor);
 
           // Armazenar GPS heading para calibracao

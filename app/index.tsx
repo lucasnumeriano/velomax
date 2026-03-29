@@ -5,6 +5,7 @@ import {
   FullScreenMap,
   MiniMap,
   SpeedLimitButton,
+  SpeedArc,
   SpeedLimitModal,
   Speedometer,
   StartupOverlay,
@@ -23,6 +24,14 @@ import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import MapView from "react-native-maps";
 import Toast from "react-native-toast-message";
+
+/**
+ * Modo simulacao de velocidade.
+ * Ativado via variavel de ambiente EXPO_PUBLIC_SIMULATE_SPEED=true
+ * (ex: npm run test:speed).
+ */
+const SIMULATE_SPEED =
+  process.env.EXPO_PUBLIC_SIMULATE_SPEED === "true";
 
 /**
  * Tela principal do VeloMax.
@@ -55,6 +64,33 @@ export default function Index() {
     settings.savedSpeedLimit,
     speed,
   );
+
+  // --- Simulacao de velocidade (debug) ---
+  const [simSpeed, setSimSpeed] = useState(0);
+  const simDirRef = useRef(1); // 1 = subindo, -1 = descendo
+
+  useEffect(() => {
+    if (!SIMULATE_SPEED) return;
+    const interval = setInterval(() => {
+      setSimSpeed((prev) => {
+        const next = prev + simDirRef.current * 2; // +2 km/h por tick
+        if (next >= 300) {
+          simDirRef.current = -1;
+          return 300;
+        }
+        if (next <= 0) {
+          simDirRef.current = 1;
+          return 0;
+        }
+        return next;
+      });
+    }, 50); // ~40 km/h por segundo
+    return () => clearInterval(interval);
+  }, []);
+
+  // Velocidades efetivas: usa simulacao se ativa, senao usa GPS real
+  const effectiveSpeed = SIMULATE_SPEED ? simSpeed : speed;
+  const effectiveSmoothSpeed = SIMULATE_SPEED ? simSpeed : smoothSpeed;
 
   // --- Estado de navegacao ---
   const [destination, setDestination] = useState<Destination | null>(null);
@@ -136,7 +172,7 @@ export default function Index() {
             <SpeedLimitButton
               speedLimit={speedLimitHook.speedLimit}
               speedLimitMode={speedLimitHook.speedLimitMode}
-              speed={speed}
+              speed={effectiveSpeed}
               inverted={settings.inverted}
               flashAnim={speedLimitHook.flashAnim}
               onPress={() => setShowSpeedLimitModal(true)}
@@ -164,11 +200,19 @@ export default function Index() {
               onBrightnessChange={settings.handleBrightnessChange}
             />
 
+            {/* Barra de velocidade curvada (posicao fixa, perto do mapa) */}
+            <View className="absolute left-[460px] top-0 bottom-0 justify-center">
+              <SpeedArc
+                speed={effectiveSmoothSpeed}
+                inverted={settings.inverted}
+              />
+            </View>
+
             {/* Velocimetro */}
             <View className="absolute right-44">
               <Speedometer
-                speed={speed}
-                smoothSpeed={smoothSpeed}
+                speed={effectiveSpeed}
+                smoothSpeed={effectiveSmoothSpeed}
                 inverted={settings.inverted}
                 speedLimit={speedLimitHook.speedLimit}
                 startupDone={speedometerReady}
@@ -177,26 +221,24 @@ export default function Index() {
             </View>
           </View>
         </Pressable>
-      ) : (
-        /* Modo Mapa Fullscreen */
-        location ? (
-          <FullScreenMap
-            mapRef={mapRef}
-            location={location}
-            smoothHeading={smoothHeading}
-            inverted={settings.inverted}
-            vehicleMode={settings.vehicleMode}
-            destination={destination}
-            routeDistance={routeDistance}
-            routeDuration={routeDuration}
-            onClose={() => setFullMap(false)}
-            onMapPress={handleMapDestination}
-            onRouteReady={handleRouteReady}
-            onClearRoute={handleClearRoute}
-            onVehicleMode={settings.handleVehicleMode}
-          />
-        ) : null
-      )}
+      ) : /* Modo Mapa Fullscreen */
+      location ? (
+        <FullScreenMap
+          mapRef={mapRef}
+          location={location}
+          smoothHeading={smoothHeading}
+          inverted={settings.inverted}
+          vehicleMode={settings.vehicleMode}
+          destination={destination}
+          routeDistance={routeDistance}
+          routeDuration={routeDuration}
+          onClose={() => setFullMap(false)}
+          onMapPress={handleMapDestination}
+          onRouteReady={handleRouteReady}
+          onClearRoute={handleClearRoute}
+          onVehicleMode={settings.handleVehicleMode}
+        />
+      ) : null}
 
       {/* Animacao de startup CRT */}
       {!startupDone ? (

@@ -1,199 +1,47 @@
 import { Audio } from "expo-av";
 import { useEffect, useRef, useState } from "react";
 import { Animated } from "react-native";
-import Toast from "react-native-toast-message";
 
-// Hierarquia de vias para selecionar a de maior prioridade quando
-// multiplas vias sao retornadas pela Overpass API no mesmo raio
-const ROAD_HIERARCHY: Record<string, number> = {
-  motorway: 7,
-  motorway_link: 6,
-  trunk: 5,
-  trunk_link: 4,
-  primary: 3,
-  secondary: 3,
-  tertiary: 2,
-  residential: 1,
-  living_street: 1,
-  unclassified: 1,
-};
-
-// Limites padrao do CTB brasileiro (Codigo de Transito Brasileiro) por tipo de via:
-// - Vias locais: 30 km/h (residential, living_street)
-// - Vias coletoras: 40 km/h (tertiary, unclassified)
-// - Vias arteriais: 60 km/h (primary, secondary)
-// - Vias de transito rapido: 80 km/h (trunk)
-// - Rodovias pista dupla: 110 km/h (motorway)
-// - Rodovias pista simples: 100 km/h (motorway sem dual_carriageway)
-const BR_SPEED_DEFAULTS: Record<string, number> = {
-  motorway: 110,
-  motorway_link: 60,
-  trunk: 80,
-  trunk_link: 60,
-  primary: 60,
-  secondary: 60,
-  tertiary: 40,
-  residential: 30,
-  living_street: 30,
-  unclassified: 40,
-};
-
-const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
+import { GOOGLE_MAPS_KEY } from "@/constants";
 
 type SpeedLimitResult = {
   limit: number | null;
-  source: "osm" | "ctb_default" | "none" | "error" | "rate_limit";
+  source: "roads_api" | "none" | "error";
   roadName?: string;
 };
 
 /**
- * Determina se uma via eh pista dupla baseado nas tags OSM.
- * Checa oneway, dual_carriageway e numero de faixas.
- */
-function isDualCarriageway(tags: Record<string, string>): boolean {
-  if (tags.oneway === "yes") return true;
-  if (tags.dual_carriageway === "yes") return true;
-  const lanes = parseInt(tags.lanes, 10);
-  if (!isNaN(lanes) && lanes >= 4) return true;
-  return false;
-}
-
-/**
- * Calcula o limite CTB para uma via, considerando diferenciacao
- * entre rodovia pista dupla (110) e pista simples (100).
- */
-function getCtbSpeedLimit(tags: Record<string, string>): number | null {
-  const hwType = tags.highway;
-  if (!hwType || BR_SPEED_DEFAULTS[hwType] === undefined) return null;
-
-  // Para motorway: diferenciar pista dupla (110) vs pista simples (100)
-  if (hwType === "motorway") {
-    return isDualCarriageway(tags) ? 110 : 100;
-  }
-
-  return BR_SPEED_DEFAULTS[hwType];
-}
-
-/**
- * Seleciona a via de maior hierarquia entre os resultados da Overpass API.
- * Isso evita que uma via local paralela a uma rodovia seja selecionada.
- */
-function selectHighestPriorityRoad(
-  elements: Array<{ tags: Record<string, string> }>,
-): { tags: Record<string, string> } | null {
-  if (elements.length === 0) return null;
-
-  let bestRoad = elements[0];
-  let bestPriority = ROAD_HIERARCHY[bestRoad.tags?.highway] ?? 0;
-
-  for (let i = 1; i < elements.length; i++) {
-    const road = elements[i];
-    const priority = ROAD_HIERARCHY[road.tags?.highway] ?? 0;
-    if (priority > bestPriority) {
-      bestRoad = road;
-      bestPriority = priority;
-    }
-  }
-
-  return bestRoad;
-}
-
-/**
- * Consulta a Overpass API (OpenStreetMap) para obter o limite de velocidade
+ * Consulta a Google Roads API Speed Limits para obter o limite de velocidade
  * da via mais proxima das coordenadas fornecidas.
  *
- * Busca todas as vias num raio de 50m e seleciona a de maior hierarquia.
- * Fallback: quando a via nao tem tag maxspeed, infere pelo tipo de via
- * usando os limites padrao do CTB brasileiro, diferenciando pista dupla/simples.
- *
- * Em caso de rate limit (429), retorna 60 km/h como fallback seguro.
+ * Envia as coordenadas e recebe o limite em KPH.
+ * Retorna null quando nenhum limite eh encontrado ou em caso de erro.
  */
 async function fetchRoadSpeedLimit(
   lat: number,
   lng: number,
 ): Promise<SpeedLimitResult> {
-  const query = `
-    [out:json][timeout:10];
-    way["highway"~"^(motorway|motorway_link|trunk|trunk_link|primary|secondary|tertiary|residential|living_street|unclassified)$"](around:50,${lat},${lng});
-    out tags;
-  `;
+  const url = `https://roads.googleapis.com/v1/speedLimits?path=${lat},${lng}&units=KPH&key=${GOOGLE_MAPS_KEY}`;
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
-    const res = await fetch(OVERPASS_URL, {
-      method: "POST",
-      body: `data=${encodeURIComponent(query)}`,
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      signal: controller.signal,
-    });
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeout);
 
     if (!res.ok) {
-      console.warn(`Overpass API retornou status ${res.status}`);
-
-      // Rate limit — fallback seguro de 60 km/h (via arterial)
-      if (res.status === 429) {
-        return { limit: 60, source: "rate_limit" };
-      }
-
-      return { limit: null, source: "error" };
-    }
-
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("json")) {
-      console.warn(
-        `Overpass API retornou content-type inesperado: ${contentType}`,
-      );
+      console.warn(`Roads API retornou status ${res.status}`);
       return { limit: null, source: "error" };
     }
 
     const data = await res.json();
 
-    if (data.elements && data.elements.length > 0) {
-      // Selecionar via de maior hierarquia entre todos os resultados
-      const road = selectHighestPriorityRoad(data.elements);
-      if (!road) return { limit: null, source: "none" };
-
-      const tags = road.tags || {};
-
-      // Tentar usar maxspeed explicito
-      if (tags.maxspeed) {
-        const maxspeed = tags.maxspeed;
-
-        if (maxspeed === "none") {
-          return { limit: null, source: "osm", roadName: tags.name };
-        }
-
-        // Valores implicitos brasileiros
-        if (maxspeed === "BR:urban") {
-          return { limit: 60, source: "osm", roadName: tags.name };
-        }
-        if (maxspeed === "BR:rural") {
-          return { limit: 100, source: "osm", roadName: tags.name };
-        }
-
-        // Valor numerico (com ou sem unidade)
-        const numMatch = maxspeed.match(/^(\d+)/);
-        if (numMatch) {
-          return {
-            limit: parseInt(numMatch[1], 10),
-            source: "osm",
-            roadName: tags.name,
-          };
-        }
-      }
-
-      // Fallback: inferir pelo tipo de via (CTB), com diferenciacao pista dupla/simples
-      const ctbLimit = getCtbSpeedLimit(tags);
-      if (ctbLimit !== null) {
-        return {
-          limit: ctbLimit,
-          source: "ctb_default",
-          roadName: tags.name,
-        };
-      }
+    if (data.speedLimits && data.speedLimits.length > 0) {
+      return {
+        limit: data.speedLimits[0].speedLimit,
+        source: "roads_api",
+      };
     }
 
     return { limit: null, source: "none" };
@@ -223,11 +71,8 @@ type UseSpeedLimitReturn = {
  * e o alerta de excesso de velocidade.
  *
  * Deteccao automatica:
- * - Consulta a Overpass API a cada 15s quando em modo automatico
- * - Seleciona a via de maior hierarquia (evita vias paralelas)
- * - Usa limites CTB quando a via nao tem maxspeed no OSM
- * - Diferencia rodovia pista dupla (110) vs pista simples (100)
- * - Trata rate limit (429) com fallback de 60 km/h + toast
+ * - Consulta a Google Roads API Speed Limits a cada 15s quando em modo automatico
+ * - Retorna o limite em KPH da via mais proxima das coordenadas
  *
  * Alerta de excesso:
  * - Toca alarme quando velocidade ultrapassa o limite
@@ -264,9 +109,6 @@ export function useSpeedLimit(
 
   // Ref para location — evita que o useEffect do polling reinicie a cada update GPS
   const locationRef = useRef(location);
-
-  // Ref para evitar toast repetido de rate limit / indisponivel
-  const toastShownRef = useRef(false);
 
   // Refs para alarme de excesso de velocidade
   const isExceedingRef = useRef(false);
@@ -419,23 +261,6 @@ export function useSpeedLimit(
       const result = await fetchRoadSpeedLimit(loc.latitude, loc.longitude);
 
       if (result.source === "error") return;
-
-      // Rate limit — exibir toast uma unica vez e usar fallback
-      if (result.source === "rate_limit") {
-        if (!toastShownRef.current) {
-          toastShownRef.current = true;
-          Toast.show({
-            type: "info",
-            text1: "Limite automatico indisponivel",
-            text2: "Usando 60 km/h como fallback. Tente novamente em breve.",
-            visibilityTime: 10000,
-            position: "bottom",
-          });
-        }
-      } else {
-        // Condicao normalizada — resetar flag para permitir toast futuro
-        toastShownRef.current = false;
-      }
 
       setRoadName(result.roadName ?? null);
 
