@@ -13,21 +13,34 @@ export type TripRow = {
 /**
  * Abre (ou cria) o banco SQLite e garante que a tabela trip existe.
  * Retorna a instancia do banco pronta para uso.
+ *
+ * Inclui retry com backoff para contornar NullPointerException no Android,
+ * onde o NativeDatabase pode nao estar pronto logo apos openDatabaseAsync.
  */
 export async function openTripDb(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync("velomax.db");
-  await db.execAsync(`
-    CREATE TABLE IF NOT EXISTS trip (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
-      trip_distance_m REAL DEFAULT 0,
-      avg_distance_m REAL DEFAULT 0,
-      moving_time_s REAL DEFAULT 0,
-      last_lat REAL,
-      last_lng REAL,
-      last_timestamp INTEGER
-    );
-    INSERT OR IGNORE INTO trip (id) VALUES (1);
-  `);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS trip (
+          id INTEGER PRIMARY KEY,
+          trip_distance_m REAL DEFAULT 0,
+          avg_distance_m REAL DEFAULT 0,
+          moving_time_s REAL DEFAULT 0,
+          last_lat REAL,
+          last_lng REAL,
+          last_timestamp INTEGER
+        );
+      `);
+      await db.runAsync("INSERT OR IGNORE INTO trip (id) VALUES (1)");
+      return db;
+    } catch {
+      if (attempt === 2) throw new Error("SQLite init failed after 3 attempts");
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+    }
+  }
+
   return db;
 }
 

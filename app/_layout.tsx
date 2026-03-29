@@ -7,11 +7,11 @@ import "../global.css";
 
 export default function RootLayout() {
   useEffect(() => {
-    NavigationBar.setVisibilityAsync("hidden");
-    NavigationBar.setBehaviorAsync("overlay-swipe");
+    NavigationBar.setVisibilityAsync("hidden").catch(() => {});
+    NavigationBar.setBehaviorAsync("overlay-swipe").catch(() => {});
     ScreenOrientation.lockAsync(
       ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT,
-    );
+    ).catch(() => {});
   }, []);
 
   return (

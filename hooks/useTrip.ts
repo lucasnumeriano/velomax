@@ -86,7 +86,7 @@ export function useTrip(
       setTripDistance(row.trip_distance_m);
       setAvgDistance(row.avg_distance_m);
       setMovingTime(row.moving_time_s);
-    })();
+    })().catch(() => {});
     return () => {
       mounted = false;
     };
