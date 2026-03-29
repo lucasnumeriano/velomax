@@ -108,7 +108,7 @@ export function TripInfo({
 
         {/* Velocidade media */}
         <View className="flex-row items-center gap-2">
-          <Text className={`text-3xl ${textClass}`}>Media</Text>
+          <Text className={`text-3xl ${textClass}`}>Média</Text>
           <Text className={`text-3xl font-bold ${textClass}`}>
             {Math.round(avgSpeed)} km/h
           </Text>
