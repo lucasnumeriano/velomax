@@ -9,6 +9,7 @@ import {
   SpeedLimitModal,
   Speedometer,
   StartupOverlay,
+  TripInfo,
 } from "@/components";
 import {
   useBattery,
@@ -16,6 +17,7 @@ import {
   useLocation,
   usePersistedSettings,
   useSpeedLimit,
+  useTrip,
 } from "@/hooks";
 import type { Destination } from "@/types";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -63,6 +65,8 @@ export default function Index() {
     settings.savedSpeedLimit,
     speed,
   );
+
+  const trip = useTrip(location, speed);
 
   // --- Simulacao de velocidade (debug) ---
   const [simSpeed, setSimSpeed] = useState(0);
@@ -264,13 +268,20 @@ export default function Index() {
               />
             </View>
 
-            {/* Velocimetro */}
-            <View className="absolute right-28">
+            {/* Velocimetro + Trip Info */}
+            <View className="absolute right-28 items-center justify-center">
               <Speedometer
                 speed={effectiveSpeed}
                 smoothSpeed={effectiveSmoothSpeed}
                 inverted={settings.inverted}
                 speedLimit={speedLimitHook.speedLimit}
+              />
+              <TripInfo
+                tripDistance={trip.tripDistance}
+                avgSpeed={trip.avgSpeed}
+                inverted={settings.inverted}
+                onResetDistance={trip.resetDistance}
+                onResetAvgSpeed={trip.resetAvgSpeed}
               />
             </View>
           </View>
