@@ -88,7 +88,7 @@ export function MiniMap({
                   : { latitude: destination.latitude, longitude: destination.longitude }
               }
               apikey={GOOGLE_MAPS_KEY}
-              strokeWidth={12}
+              strokeWidth={19}
               strokeColor="#00c8ff"
               optimizeWaypoints
               resetOnChange={false}

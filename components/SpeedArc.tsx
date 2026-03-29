@@ -13,52 +13,70 @@ type Props = {
   inverted?: boolean;
 };
 
-const SVG_WIDTH = 50;
-const SVG_HEIGHT = 260;
+const SVG_WIDTH = 100;
+const SVG_HEIGHT = 290;
 
 /**
- * Arco curvado afinando de baixo para cima.
+ * Path do arco em formato "taco de hockey" — base larga e reta,
+ * sobe grosso e dobra quase 90 graus para a direita afinando no topo.
  *
- * Borda externa (esquerda) curva para a esquerda com control points X baixo.
- * Borda interna (direita) desce com curvatura mais suave.
- * Largura: ~20px na base, ~3px no topo.
+ * Base: ~40px de largura (0-40), reta e horizontal.
+ * Corpo: ~30px de largura (4-34), sobe vertical.
+ * Topo: curva fechada para a direita, afina ate ~2px na ponta (~90-92).
  */
 const ARC_PATH = [
-  "M 45 255",
-  "L 25 255",
-  "C 5 190, 10 70, 42 5",
-  "L 45 5",
-  "C 35 70, 30 190, 45 255",
+  "M 0 285",
+  "L 40 285",
+  "L 37 270",
+  "L 34 50",
+  "C 34 18, 50 3, 90 3",
+  "L 92 0",
+  "C 46 -2, 6 12, 4 50",
+  "L 3 270",
+  "L 0 285",
   "Z",
 ].join(" ");
 
+/** Path da base — faixa horizontal com opacidade extra */
+const BASE_PATH = "M 0 285 L 40 285 L 37 270 L 3 270 Z";
+
+const STROKE_WIDTH = 3.5;
+
 /**
- * Barra curvada de velocidade exibida ao lado esquerdo do velocimetro.
+ * Barra curvada de velocidade com formato de "taco de hockey".
  *
- * Desenha um arco em forma de "C" (convexo a esquerda) usando SVG que
- * preenche de baixo para cima proporcional a velocidade atual. O arco
- * tem gradiente de tres zonas: neon -> amarelo -> vermelho.
+ * Apenas bordas visiveis com fill interior sutil e transparente.
+ * A borda usa gradiente de tres zonas: neon -> amarelo -> vermelho.
+ * Adapta cores conforme o tema (inverted): bordas brancas no escuro,
+ * bordas pretas no claro.
  *
- * Usa duas camadas sobrepostas:
- * 1. Ghost arc (dim) mostrando a extensao total
- * 2. Gradient arc dentro de uma View com overflow:hidden e altura dinamica,
- *    posicionada na parte inferior — essa tecnica substitui ClipPath que
- *    nao re-renderiza confiavelmente no react-native-svg.
+ * Usa tres camadas sobrepostas:
+ * 1. Ghost outline — contorno completo com opacidade baixa
+ * 2. Base overlay — faixa horizontal inferior com opacidade extra
+ * 3. Speed fill — borda gradiente + fill sutil, cortado por View
+ *    com overflow:hidden e altura dinamica de baixo para cima
  *
  * Inline styles obrigatorios: SVG components requerem style prop,
  * e a altura dinamica da View de clip precisa de calculo em runtime.
  */
 export function SpeedArc({
   speed,
-  maxSpeed = 300,
+  maxSpeed = 240,
   inverted = false,
 }: Props) {
   const fillPercent = Math.min(Math.max(speed, 0) / maxSpeed, 1);
   const fillHeight = Math.round(SVG_HEIGHT * fillPercent);
 
+  const ghostStroke = inverted
+    ? "rgba(0,0,0,0.12)"
+    : "rgba(255,255,255,0.12)";
+  const baseFill = inverted
+    ? "rgba(0,0,0,0.08)"
+    : "rgba(255,255,255,0.08)";
+
   return (
     <View style={{ width: SVG_WIDTH, height: SVG_HEIGHT, marginRight: -8 }}>
-      {/* Camada 1: Ghost arc — extensao total, cor dim */}
+      {/* Camada 1: Ghost outline — contorno completo, dim */}
       <Svg
         width={SVG_WIDTH}
         height={SVG_HEIGHT}
@@ -67,11 +85,16 @@ export function SpeedArc({
       >
         <Path
           d={ARC_PATH}
-          fill={inverted ? "rgba(0,0,0,0.1)" : "rgba(255,255,255,0.12)"}
+          fill="none"
+          stroke={ghostStroke}
+          strokeWidth={STROKE_WIDTH}
+          strokeLinejoin="round"
         />
+        {/* Base com opacidade extra */}
+        <Path d={BASE_PATH} fill={baseFill} stroke="none" />
       </Svg>
 
-      {/* Camada 2: Gradient arc — cortado pela View com overflow hidden */}
+      {/* Camada 2: Speed fill — borda gradiente + fill sutil, cortado */}
       <View
         style={{
           position: "absolute",
@@ -89,13 +112,24 @@ export function SpeedArc({
           style={{ position: "absolute", bottom: 0, left: 0 }}
         >
           <Defs>
-            <LinearGradient id="speedGradient" x1="0" y1="0" x2="0" y2="1">
+            <LinearGradient id="speedStroke" x1="0" y1="0" x2="0" y2="1">
               <Stop offset="0" stopColor="#ff4444" />
               <Stop offset="0.33" stopColor="#ffd700" />
               <Stop offset="1" stopColor="#00ffcc" />
             </LinearGradient>
+            <LinearGradient id="speedFill" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="rgba(255,68,68,0.08)" />
+              <Stop offset="0.33" stopColor="rgba(255,215,0,0.12)" />
+              <Stop offset="1" stopColor="rgba(0,255,204,0.15)" />
+            </LinearGradient>
           </Defs>
-          <Path d={ARC_PATH} fill="url(#speedGradient)" />
+          <Path
+            d={ARC_PATH}
+            fill="url(#speedFill)"
+            stroke="url(#speedStroke)"
+            strokeWidth={STROKE_WIDTH}
+            strokeLinejoin="round"
+          />
         </Svg>
       </View>
     </View>

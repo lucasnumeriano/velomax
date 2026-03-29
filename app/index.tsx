@@ -30,8 +30,7 @@ import Toast from "react-native-toast-message";
  * Ativado via variavel de ambiente EXPO_PUBLIC_SIMULATE_SPEED=true
  * (ex: npm run test:speed).
  */
-const SIMULATE_SPEED =
-  process.env.EXPO_PUBLIC_SIMULATE_SPEED === "true";
+const SIMULATE_SPEED = process.env.EXPO_PUBLIC_SIMULATE_SPEED === "true";
 
 /**
  * Tela principal do VeloMax.
@@ -74,9 +73,9 @@ export default function Index() {
     const interval = setInterval(() => {
       setSimSpeed((prev) => {
         const next = prev + simDirRef.current * 2; // +2 km/h por tick
-        if (next >= 300) {
+        if (next >= MAX_STARTUP_SPEED) {
           simDirRef.current = -1;
-          return 300;
+          return MAX_STARTUP_SPEED;
         }
         if (next <= 0) {
           simDirRef.current = 1;
@@ -87,10 +86,6 @@ export default function Index() {
     }, 50); // ~40 km/h por segundo
     return () => clearInterval(interval);
   }, []);
-
-  // Velocidades efetivas: usa simulacao se ativa, senao usa GPS real
-  const effectiveSpeed = SIMULATE_SPEED ? simSpeed : speed;
-  const effectiveSmoothSpeed = SIMULATE_SPEED ? simSpeed : smoothSpeed;
 
   // --- Estado de navegacao ---
   const [destination, setDestination] = useState<Destination | null>(null);
@@ -103,9 +98,70 @@ export default function Index() {
   const [showBrightness, setShowBrightness] = useState(false);
   const [showSpeedLimitModal, setShowSpeedLimitModal] = useState(false);
 
+  // --- Animacao de startup do velocimetro (0 → 240 → 0) ---
+  const [startupSpeed, setStartupSpeed] = useState(0);
+  const startupRunning = useRef(false);
+  const MAX_STARTUP_SPEED = 240;
+
+  useEffect(() => {
+    if (speedometerReady || startupRunning.current) return;
+    startupRunning.current = true;
+
+    const totalUp = 800;
+    const totalDown = 400;
+    const fps = 60;
+    const intervalMs = 1000 / fps;
+
+    // Fase 1: 0 → 240
+    let frame = 0;
+    const framesUp = Math.round(totalUp / intervalMs);
+    const timerUp = setInterval(() => {
+      frame++;
+      const progress = frame / framesUp;
+      const eased = 1 - Math.pow(1 - progress, 2);
+      setStartupSpeed(Math.round(eased * MAX_STARTUP_SPEED));
+
+      if (frame >= framesUp) {
+        clearInterval(timerUp);
+
+        // Fase 2: 240 → 0
+        let frameDown = 0;
+        const framesDown = Math.round(totalDown / intervalMs);
+        const timerDown = setInterval(() => {
+          frameDown++;
+          const progressDown = frameDown / framesDown;
+          const easedDown = 1 - Math.pow(1 - progressDown, 2);
+          setStartupSpeed(Math.round(MAX_STARTUP_SPEED * (1 - easedDown)));
+
+          if (frameDown >= framesDown) {
+            clearInterval(timerDown);
+            setStartupSpeed(0);
+            setSpeedometerReady(true);
+          }
+        }, intervalMs);
+      }
+    }, intervalMs);
+
+    return () => {
+      clearInterval(timerUp);
+    };
+  }, [speedometerReady]);
+
+  // Velocidades efetivas: startup > simulacao > GPS real
+  const effectiveSpeed = !speedometerReady
+    ? startupSpeed
+    : SIMULATE_SPEED
+      ? simSpeed
+      : speed;
+  const effectiveSmoothSpeed = !speedometerReady
+    ? startupSpeed
+    : SIMULATE_SPEED
+      ? simSpeed
+      : smoothSpeed;
+
   // Manter tela ativa
   useEffect(() => {
-    activateKeepAwakeAsync();
+    activateKeepAwakeAsync().catch(() => {});
     return () => {
       deactivateKeepAwake();
     };
@@ -201,7 +257,7 @@ export default function Index() {
             />
 
             {/* Barra de velocidade curvada (posicao fixa, perto do mapa) */}
-            <View className="absolute left-[460px] top-0 bottom-0 justify-center">
+            <View className="absolute left-[470px] top-0 bottom-10 justify-center">
               <SpeedArc
                 speed={effectiveSmoothSpeed}
                 inverted={settings.inverted}
@@ -209,14 +265,12 @@ export default function Index() {
             </View>
 
             {/* Velocimetro */}
-            <View className="absolute right-44">
+            <View className="absolute right-28">
               <Speedometer
                 speed={effectiveSpeed}
                 smoothSpeed={effectiveSmoothSpeed}
                 inverted={settings.inverted}
                 speedLimit={speedLimitHook.speedLimit}
-                startupDone={speedometerReady}
-                onStartupComplete={() => setSpeedometerReady(true)}
               />
             </View>
           </View>
