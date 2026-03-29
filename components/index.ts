@@ -10,3 +10,4 @@ export { SpeedArc } from "./SpeedArc";
 export { Speedometer } from "./Speedometer";
 export { StartupOverlay } from "./StartupOverlay";
 export { VehicleSelector } from "./VehicleSelector";
+export { TripInfo } from "./TripInfo";
