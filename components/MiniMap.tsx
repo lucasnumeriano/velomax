@@ -72,8 +72,8 @@ export function MiniMap({
           scrollEnabled={false}
           zoomEnabled={false}
           pitchEnabled={false}
-          showsCompass={false}
-          showsBuildings={false}
+          showsCompass={true}
+          showsBuildings={true}
           showsTraffic={true}
         >
           {destination && GOOGLE_MAPS_KEY ? (
@@ -85,7 +85,10 @@ export function MiniMap({
               destination={
                 destination.placeId
                   ? `place_id:${destination.placeId}`
-                  : { latitude: destination.latitude, longitude: destination.longitude }
+                  : {
+                      latitude: destination.latitude,
+                      longitude: destination.longitude,
+                    }
               }
               apikey={GOOGLE_MAPS_KEY}
               strokeWidth={19}

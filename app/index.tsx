@@ -268,7 +268,7 @@ export default function Index() {
               />
             </View>
 
-            {/* Velocimetro + Trip Info */}
+            {/* Velocimetro */}
             <View className="absolute right-28 items-center justify-center">
               <Speedometer
                 speed={effectiveSpeed}
@@ -276,6 +276,10 @@ export default function Index() {
                 inverted={settings.inverted}
                 speedLimit={speedLimitHook.speedLimit}
               />
+            </View>
+
+            {/* Trip Info (abaixo do mini-mapa, alinhado com borda inferior) */}
+            <View className="absolute top-[337px] right-[34px]">
               <TripInfo
                 tripDistance={trip.tripDistance}
                 avgSpeed={trip.avgSpeed}
