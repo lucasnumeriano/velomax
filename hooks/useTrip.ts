@@ -5,14 +5,17 @@ import {
   loadTrip,
   saveTrip,
   resetTripDistance,
+  resetTripBDistance,
   resetTripAvgSpeed,
 } from "@/db";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 /** Estado e controles do trip computer. */
 export type TripState = {
+  activeTrip: "A" | "B";
   tripDistance: number; // metros
   avgSpeed: number; // km/h
+  toggleTrip: () => void;
   resetDistance: () => void;
   resetAvgSpeed: () => void;
 };
@@ -38,7 +41,7 @@ function haversineDistance(
 }
 
 /**
- * Hook que acumula distancia percorrida (Trip A) e calcula velocidade media.
+ * Hook que acumula distancia percorrida (Trip A/B) e calcula velocidade media.
  *
  * Usa acumuladores separados para Trip A e vel. media, permitindo reset
  * independente sem corromper a outra metrica.
@@ -54,7 +57,8 @@ export function useTrip(
   speed: number,
 ): TripState {
   const dbRef = useRef<SQLiteDatabase | null>(null);
-  const tripDistanceRef = useRef(0);
+  const tripADistanceRef = useRef(0);
+  const tripBDistanceRef = useRef(0);
   const avgDistanceRef = useRef(0);
   const movingTimeRef = useRef(0);
   const lastLatRef = useRef<number | null>(null);
@@ -64,7 +68,9 @@ export function useTrip(
   const dirtyRef = useRef(false);
 
   // Estado exposto para UI (atualizado a cada GPS update)
-  const [tripDistance, setTripDistance] = useState(0);
+  const [activeTrip, setActiveTrip] = useState<"A" | "B">("A");
+  const [tripADistance, setTripADistance] = useState(0);
+  const [tripBDistance, setTripBDistance] = useState(0);
   const [avgDistance, setAvgDistance] = useState(0);
   const [movingTime, setMovingTime] = useState(0);
 
@@ -77,13 +83,15 @@ export function useTrip(
       dbRef.current = db;
       const row = await loadTrip(db);
       if (!mounted) return;
-      tripDistanceRef.current = row.trip_distance_m;
+      tripADistanceRef.current = row.trip_distance_m;
+      tripBDistanceRef.current = row.trip_b_distance_m;
       avgDistanceRef.current = row.avg_distance_m;
       movingTimeRef.current = row.moving_time_s;
       lastLatRef.current = row.last_lat;
       lastLngRef.current = row.last_lng;
       lastTimestampRef.current = row.last_timestamp;
-      setTripDistance(row.trip_distance_m);
+      setTripADistance(row.trip_distance_m);
+      setTripBDistance(row.trip_b_distance_m);
       setAvgDistance(row.avg_distance_m);
       setMovingTime(row.moving_time_s);
     })().catch(() => {});
@@ -97,7 +105,8 @@ export function useTrip(
     return () => {
       if (dbRef.current && dirtyRef.current) {
         saveTrip(dbRef.current, {
-          trip_distance_m: tripDistanceRef.current,
+          trip_distance_m: tripADistanceRef.current,
+          trip_b_distance_m: tripBDistanceRef.current,
           avg_distance_m: avgDistanceRef.current,
           moving_time_s: movingTimeRef.current,
           last_lat: lastLatRef.current,
@@ -143,14 +152,16 @@ export function useTrip(
     // Descarta saltos GPS (teleporte)
     if (deltaDist > 500) return;
 
-    // Acumula ambos acumuladores de distancia + tempo
-    tripDistanceRef.current += deltaDist;
+    // Acumula ambos trips + media
+    tripADistanceRef.current += deltaDist;
+    tripBDistanceRef.current += deltaDist;
     avgDistanceRef.current += deltaDist;
     movingTimeRef.current += deltaTime;
     dirtyRef.current = true;
 
     // Atualiza UI
-    setTripDistance(tripDistanceRef.current);
+    setTripADistance(tripADistanceRef.current);
+    setTripBDistance(tripBDistanceRef.current);
     setAvgDistance(avgDistanceRef.current);
     setMovingTime(movingTimeRef.current);
 
@@ -159,7 +170,8 @@ export function useTrip(
       lastSaveRef.current = now;
       dirtyRef.current = false;
       saveTrip(dbRef.current, {
-        trip_distance_m: tripDistanceRef.current,
+        trip_distance_m: tripADistanceRef.current,
+        trip_b_distance_m: tripBDistanceRef.current,
         avg_distance_m: avgDistanceRef.current,
         moving_time_s: movingTimeRef.current,
         last_lat: location.latitude,
@@ -171,17 +183,30 @@ export function useTrip(
 
   // --- Vel. media: (avg_dist / tempo) * 3.6 ---
   const avgSpeed = movingTime > 0 ? (avgDistance / movingTime) * 3.6 : 0;
+  const tripDistance = activeTrip === "A" ? tripADistance : tripBDistance;
+
+  const handleToggleTrip = () => {
+    setActiveTrip((current) => (current === "A" ? "B" : "A"));
+  };
 
   // --- Reset handlers ---
   const handleResetDistance = async () => {
     if (!dbRef.current) return;
-    tripDistanceRef.current = 0;
     lastLatRef.current = null;
     lastLngRef.current = null;
     lastTimestampRef.current = null;
     dirtyRef.current = false;
-    setTripDistance(0);
-    await resetTripDistance(dbRef.current).catch(() => {});
+
+    if (activeTrip === "A") {
+      tripADistanceRef.current = 0;
+      setTripADistance(0);
+      await resetTripDistance(dbRef.current).catch(() => {});
+      return;
+    }
+
+    tripBDistanceRef.current = 0;
+    setTripBDistance(0);
+    await resetTripBDistance(dbRef.current).catch(() => {});
   };
 
   const handleResetAvgSpeed = async () => {
@@ -198,8 +223,10 @@ export function useTrip(
   };
 
   return {
+    activeTrip,
     tripDistance,
     avgSpeed,
+    toggleTrip: handleToggleTrip,
     resetDistance: handleResetDistance,
     resetAvgSpeed: handleResetAvgSpeed,
   };

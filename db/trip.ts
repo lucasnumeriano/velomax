@@ -3,6 +3,7 @@ import * as SQLite from "expo-sqlite";
 /** Tipo dos dados de trip persistidos no banco. */
 export type TripRow = {
   trip_distance_m: number;
+  trip_b_distance_m: number;
   avg_distance_m: number;
   moving_time_s: number;
   last_lat: number | null;
@@ -26,6 +27,7 @@ export async function openTripDb(): Promise<SQLite.SQLiteDatabase> {
         CREATE TABLE IF NOT EXISTS trip (
           id INTEGER PRIMARY KEY,
           trip_distance_m REAL DEFAULT 0,
+          trip_b_distance_m REAL DEFAULT 0,
           avg_distance_m REAL DEFAULT 0,
           moving_time_s REAL DEFAULT 0,
           last_lat REAL,
@@ -33,6 +35,20 @@ export async function openTripDb(): Promise<SQLite.SQLiteDatabase> {
           last_timestamp INTEGER
         );
       `);
+
+      const columns = await db.getAllAsync<{ name: string }>(
+        "PRAGMA table_info(trip)",
+      );
+      const hasTripBDistance = columns.some(
+        (column) => column.name === "trip_b_distance_m",
+      );
+
+      if (!hasTripBDistance) {
+        await db.execAsync(
+          "ALTER TABLE trip ADD COLUMN trip_b_distance_m REAL DEFAULT 0",
+        );
+      }
+
       await db.runAsync("INSERT OR IGNORE INTO trip (id) VALUES (1)");
       return db;
     } catch {
@@ -52,11 +68,12 @@ export async function loadTrip(
   db: SQLite.SQLiteDatabase,
 ): Promise<TripRow> {
   const row = await db.getFirstAsync<TripRow>(
-    "SELECT trip_distance_m, avg_distance_m, moving_time_s, last_lat, last_lng, last_timestamp FROM trip WHERE id = 1",
+    "SELECT trip_distance_m, trip_b_distance_m, avg_distance_m, moving_time_s, last_lat, last_lng, last_timestamp FROM trip WHERE id = 1",
   );
   return (
     row ?? {
       trip_distance_m: 0,
+      trip_b_distance_m: 0,
       avg_distance_m: 0,
       moving_time_s: 0,
       last_lat: null,
@@ -74,8 +91,9 @@ export async function saveTrip(
   data: TripRow,
 ): Promise<void> {
   await db.runAsync(
-    "UPDATE trip SET trip_distance_m = ?, avg_distance_m = ?, moving_time_s = ?, last_lat = ?, last_lng = ?, last_timestamp = ? WHERE id = 1",
+    "UPDATE trip SET trip_distance_m = ?, trip_b_distance_m = ?, avg_distance_m = ?, moving_time_s = ?, last_lat = ?, last_lng = ?, last_timestamp = ? WHERE id = 1",
     data.trip_distance_m,
+    data.trip_b_distance_m,
     data.avg_distance_m,
     data.moving_time_s,
     data.last_lat,
@@ -94,6 +112,19 @@ export async function resetTripDistance(
 ): Promise<void> {
   await db.runAsync(
     "UPDATE trip SET trip_distance_m = 0, last_lat = NULL, last_lng = NULL, last_timestamp = NULL WHERE id = 1",
+  );
+}
+
+/**
+ * Reseta apenas a distancia do Trip B.
+ * Zera trip_b_distance_m. Nao afeta avg_distance_m nem moving_time_s.
+ * Limpa last_lat/lng/timestamp para recomecar o tracking.
+ */
+export async function resetTripBDistance(
+  db: SQLite.SQLiteDatabase,
+): Promise<void> {
+  await db.runAsync(
+    "UPDATE trip SET trip_b_distance_m = 0, last_lat = NULL, last_lng = NULL, last_timestamp = NULL WHERE id = 1",
   );
 }
 

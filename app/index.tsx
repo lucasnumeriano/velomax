@@ -9,6 +9,7 @@ import {
   SpeedLimitModal,
   Speedometer,
   StartupOverlay,
+  ScreenshotButton,
   TripInfo,
 } from "@/components";
 import {
@@ -21,11 +22,13 @@ import {
 } from "@/hooks";
 import type { Destination } from "@/types";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as MediaLibrary from "expo-media-library";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, View } from "react-native";
 import MapView from "react-native-maps";
 import Toast from "react-native-toast-message";
+import { captureRef } from "react-native-view-shot";
 
 /**
  * Modo simulacao de velocidade.
@@ -46,6 +49,7 @@ const SIMULATE_SPEED = process.env.EXPO_PUBLIC_SIMULATE_SPEED === "true";
  */
 export default function Index() {
   const mapRef = useRef<MapView>(null);
+  const hudCaptureRef = useRef<View>(null);
 
   // --- Hooks customizados ---
   const time = useClock();
@@ -101,6 +105,7 @@ export default function Index() {
   const [speedometerReady, setSpeedometerReady] = useState(false);
   const [showBrightness, setShowBrightness] = useState(false);
   const [showSpeedLimitModal, setShowSpeedLimitModal] = useState(false);
+  const [mediaPermission, requestMediaPermission] = MediaLibrary.usePermissions();
 
   // --- Animacao de startup do velocimetro (0 → 240 → 0) ---
   const [startupSpeed, setStartupSpeed] = useState(0);
@@ -192,12 +197,59 @@ export default function Index() {
     await AsyncStorage.setItem("speedLimitMode", mode);
   };
 
+  const handleSaveHudScreenshot = async () => {
+    try {
+      if (!hudCaptureRef.current) {
+        Toast.show({
+          type: "error",
+          text1: "Falha ao capturar",
+          text2: "Nao foi possivel acessar o HUD para print.",
+        });
+        return;
+      }
+
+      const permission = mediaPermission?.granted
+        ? mediaPermission
+        : await requestMediaPermission();
+
+      if (!permission?.granted) {
+        Toast.show({
+          type: "error",
+          text1: "Permissao negada",
+          text2: "Permita acesso a fotos para salvar o print.",
+        });
+        return;
+      }
+
+      const localUri = await captureRef(hudCaptureRef, {
+        format: "png",
+        quality: 1,
+      });
+
+      await MediaLibrary.saveToLibraryAsync(localUri);
+
+      Toast.show({
+        type: "success",
+        text1: "Print salvo",
+        text2: "Imagem salva na galeria.",
+      });
+    } catch {
+      Toast.show({
+        type: "error",
+        text1: "Erro ao salvar print",
+        text2: "Tente novamente em alguns segundos.",
+      });
+    }
+  };
+
   return (
     <>
       {/* Modo Normal - HUD */}
       {!fullMap ? (
         <Pressable onLongPress={settings.handleToggleTheme} className="flex-1">
           <View
+            ref={hudCaptureRef}
+            collapsable={false}
             className={`flex-1 items-center justify-center px-6 ${
               settings.inverted ? "bg-white" : "bg-panel"
             }`}
@@ -236,6 +288,11 @@ export default function Index() {
               inverted={settings.inverted}
               flashAnim={speedLimitHook.flashAnim}
               onPress={() => setShowSpeedLimitModal(true)}
+            />
+
+            <ScreenshotButton
+              inverted={settings.inverted}
+              onPress={handleSaveHudScreenshot}
             />
 
             {/* Modal de Limite de Velocidade */}
@@ -281,9 +338,11 @@ export default function Index() {
             {/* Trip Info (abaixo do mini-mapa, alinhado com borda inferior) */}
             <View className="absolute top-[337px] right-[34px]">
               <TripInfo
+                activeTrip={trip.activeTrip}
                 tripDistance={trip.tripDistance}
                 avgSpeed={trip.avgSpeed}
                 inverted={settings.inverted}
+                onToggleTrip={trip.toggleTrip}
                 onResetDistance={trip.resetDistance}
                 onResetAvgSpeed={trip.resetAvgSpeed}
               />
