@@ -50,7 +50,7 @@ export function Speedometer({
       pulseAnim.stopAnimation();
       pulseAnim.setValue(1);
     }
-  }, [exceeded]);
+  }, [exceeded, pulseAnim]);
 
   return (
     <Animated.View

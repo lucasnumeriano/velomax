@@ -22,6 +22,12 @@ export function StartupOverlay({ onComplete }: Props) {
   const lineOpacity = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0)).current;
 
+  // Guarda o callback numa ref para que a animacao rode uma unica vez.
+  // O parent passa uma arrow inline, cuja identidade muda a cada render;
+  // depender dela diretamente reiniciaria a animacao a cada tick do GPS.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   useEffect(() => {
     Animated.sequence([
       // Fase 1: linha horizontal aparece no centro (0-300ms)
@@ -71,9 +77,9 @@ export function StartupOverlay({ onComplete }: Props) {
         }),
       ]),
     ]).start(() => {
-      onComplete();
+      onCompleteRef.current();
     });
-  }, []);
+  }, [lineOpacity, glowOpacity, lineScaleY, overlayOpacity]);
 
   return (
     <Animated.View
